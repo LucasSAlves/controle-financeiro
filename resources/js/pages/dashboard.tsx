@@ -1,6 +1,7 @@
 import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
-import { Head, Link, router } from '@inertiajs/react';
+import { Head, Link, router, useForm } from '@inertiajs/react';
+import { type FormEventHandler } from 'react';
 
 type Resumo = {
     entradas: string | number;
@@ -41,11 +42,19 @@ type Filtros = {
     mes: string;
 };
 
+type PreferenciasNotificacao = {
+    definidas: boolean;
+    receber_aviso_email: boolean;
+    receber_aviso_whatsapp: boolean;
+    telefone_whatsapp: string | null;
+};
+
 type Props = {
     resumo?: Resumo;
     ultimasMovimentacoes?: Movimentacao[];
     avisosVencimento?: AvisosVencimento;
     filtros?: Filtros;
+    preferenciasNotificacao: PreferenciasNotificacao;
 };
 
 const breadcrumbs: BreadcrumbItem[] = [
@@ -67,6 +76,7 @@ function formatarData(data: string) {
 }
 
 export default function Dashboard({
+    preferenciasNotificacao,
     resumo = {
         entradas: 0,
         despesas: 0,
@@ -81,7 +91,33 @@ export default function Dashboard({
     filtros = {
         mes: new Date().toISOString().slice(0, 7),
     },
-}: Props) {
+}:
+Props) {
+        const {
+        data: dadosNotificacao,
+        setData: setDadosNotificacao,
+        patch: salvarPreferencias,
+        errors: errosNotificacao,
+        processing: salvandoPreferencias,
+    } = useForm({
+        receber_aviso_email:
+            preferenciasNotificacao.receber_aviso_email,
+
+        receber_aviso_whatsapp:
+            preferenciasNotificacao.receber_aviso_whatsapp,
+
+        telefone_whatsapp:
+            preferenciasNotificacao.telefone_whatsapp ?? '',
+    });
+
+    const enviarPreferencias: FormEventHandler = (event) => {
+        event.preventDefault();
+
+        salvarPreferencias(route('notificacoes.update'), {
+            preserveScroll: true,
+        });
+    };
+
     function alterarMes(mes: string) {
         router.get(
             '/dashboard',
@@ -187,7 +223,162 @@ export default function Dashboard({
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Controle Financeiro" />
+            {!preferenciasNotificacao.definidas && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+                    <div
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby="titulo-preferencias-notificacao"
+                        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-border bg-card p-6 shadow-2xl"
+                    >
+                        <div className="mb-6">
+                            <p className="text-sm font-semibold text-primary">
+                                Configuração inicial
+                            </p>
 
+                            <h2
+                                id="titulo-preferencias-notificacao"
+                                className="mt-1 text-2xl font-bold text-foreground"
+                            >
+                                Como deseja receber seus avisos?
+                            </h2>
+
+                            <p className="mt-2 text-sm text-muted-foreground">
+                                Escolha como o Controle Financeiro deverá avisar
+                                sobre despesas próximas do vencimento. Você poderá
+                                alterar essa opção depois em Configurações.
+                            </p>
+                        </div>
+
+                        <form
+                            onSubmit={enviarPreferencias}
+                            className="space-y-5"
+                        >
+                            <label
+                                htmlFor="modal_receber_aviso_email"
+                                className="flex cursor-pointer items-start gap-3 rounded-xl border border-border p-4 transition hover:bg-muted/50"
+                            >
+                                <input
+                                    id="modal_receber_aviso_email"
+                                    type="checkbox"
+                                    checked={
+                                        dadosNotificacao.receber_aviso_email
+                                    }
+                                    onChange={(event) =>
+                                        setDadosNotificacao(
+                                            'receber_aviso_email',
+                                            event.target.checked,
+                                        )
+                                    }
+                                    className="mt-1 h-4 w-4 cursor-pointer rounded border-input"
+                                />
+
+                                <div>
+                                    <p className="font-semibold text-foreground">
+                                        Receber por e-mail
+                                    </p>
+
+                                    <p className="mt-1 text-sm text-muted-foreground">
+                                        Os avisos serão enviados para o e-mail da
+                                        sua conta.
+                                    </p>
+                                </div>
+                            </label>
+
+                            <label
+                                htmlFor="modal_receber_aviso_whatsapp"
+                                className="flex cursor-pointer items-start gap-3 rounded-xl border border-border p-4 transition hover:bg-muted/50"
+                            >
+                                <input
+                                    id="modal_receber_aviso_whatsapp"
+                                    type="checkbox"
+                                    checked={
+                                        dadosNotificacao.receber_aviso_whatsapp
+                                    }
+                                    onChange={(event) =>
+                                        setDadosNotificacao(
+                                            'receber_aviso_whatsapp',
+                                            event.target.checked,
+                                        )
+                                    }
+                                    className="mt-1 h-4 w-4 cursor-pointer rounded border-input"
+                                />
+
+                                <div>
+                                    <p className="font-semibold text-foreground">
+                                        Receber pelo WhatsApp
+                                    </p>
+
+                                    <p className="mt-1 text-sm text-muted-foreground">
+                                        Os avisos serão enviados para o número
+                                        informado abaixo.
+                                    </p>
+                                </div>
+                            </label>
+
+                            {dadosNotificacao.receber_aviso_whatsapp && (
+                                <div className="space-y-2">
+                                    <label
+                                        htmlFor="modal_telefone_whatsapp"
+                                        className="text-sm font-medium text-foreground"
+                                    >
+                                        Número do WhatsApp
+                                    </label>
+
+                                    <input
+                                        id="modal_telefone_whatsapp"
+                                        type="tel"
+                                        value={
+                                            dadosNotificacao.telefone_whatsapp
+                                        }
+                                        onChange={(event) =>
+                                            setDadosNotificacao(
+                                                'telefone_whatsapp',
+                                                event.target.value,
+                                            )
+                                        }
+                                        placeholder="(11) 99999-9999"
+                                        autoComplete="tel"
+                                        className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
+                                        required
+                                    />
+
+                                    <p className="text-xs text-muted-foreground">
+                                        Informe o número com DDD.
+                                    </p>
+
+                                    {errosNotificacao.telefone_whatsapp && (
+                                        <p className="text-sm font-medium text-red-600">
+                                            {
+                                                errosNotificacao.telefone_whatsapp
+                                            }
+                                        </p>
+                                    )}
+                                </div>
+                            )}
+
+                            {!dadosNotificacao.receber_aviso_email &&
+                                !dadosNotificacao.receber_aviso_whatsapp && (
+                                    <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+                                        Você não receberá avisos de vencimento
+                                        enquanto as duas opções estiverem
+                                        desativadas.
+                                    </div>
+                                )}
+
+                            <button
+                                type="submit"
+                                disabled={salvandoPreferencias}
+                                className="w-full rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground shadow-sm transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                                {salvandoPreferencias
+                                    ? 'Salvando...'
+                                    : 'Salvar preferências'}
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            )}
             <div className="flex flex-col gap-6 p-4">
                 <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
                     <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">

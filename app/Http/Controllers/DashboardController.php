@@ -12,6 +12,8 @@ class DashboardController extends Controller
 {
     public function index(Request $request): Response
     {
+        $user = $request->user();
+
         $mesSelecionado = $request->input('mes', now()->format('Y-m'));
 
         $inicioDoMes = \Carbon\Carbon::createFromFormat('Y-m', $mesSelecionado)
@@ -118,6 +120,12 @@ class DashboardController extends Controller
             });
 
         return Inertia::render('dashboard', [
+            'preferenciasNotificacao' => [
+                'definidas' => $user->preferencias_notificacao_definidas_em !== null,
+                'receber_aviso_email' => (bool) $user->receber_aviso_email,
+                'receber_aviso_whatsapp' => (bool) $user->receber_aviso_whatsapp,
+                'telefone_whatsapp' => $user->telefone_whatsapp,
+            ],
             'resumo' => [
                 'entradas' => $totalEntradas,
                 'despesas' => $totalDespesas,

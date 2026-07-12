@@ -21,6 +21,12 @@ const sidebarNavItems: NavItem[] = [
         url: '/settings/appearance',
         icon: null,
     },
+
+    {
+        title: 'Notificações',
+        url: '/settings/notificacoes',
+        icon: null,
+    },
 ];
 
 export default function SettingsLayout({ children }: { children: React.ReactNode }) {

@@ -21,6 +21,11 @@ class User extends Authenticatable
         'name',
         'email',
         'password',
+        'receber_aviso_email',
+        'receber_aviso_whatsapp',
+        'telefone_whatsapp',
+        'whatsapp_consentimento_em',
+        'preferencias_notificacao_definidas_em',
     ];
 
     /**
@@ -43,6 +48,10 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'receber_aviso_email' => 'boolean',
+            'receber_aviso_whatsapp' => 'boolean',
+            'whatsapp_consentimento_em' => 'datetime',
+            'preferencias_notificacao_definidas_em' => 'datetime',
         ];
     }
 }
