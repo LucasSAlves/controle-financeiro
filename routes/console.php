@@ -10,4 +10,5 @@ Artisan::command('inspire', function () {
 
 Schedule::command('avisos:vencimentos')
     ->dailyAt('08:00')
-    ->timezone('America/Sao_Paulo');
+    ->timezone('America/Sao_Paulo')
+    ->withoutOverlapping();
