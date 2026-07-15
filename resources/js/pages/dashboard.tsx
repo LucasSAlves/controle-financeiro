@@ -94,21 +94,14 @@ export default function Dashboard({
 }:
 Props) {
         const {
-        data: dadosNotificacao,
-        setData: setDadosNotificacao,
-        patch: salvarPreferencias,
-        errors: errosNotificacao,
-        processing: salvandoPreferencias,
-    } = useForm({
-        receber_aviso_email:
-            preferenciasNotificacao.receber_aviso_email,
-
-        receber_aviso_whatsapp:
-            preferenciasNotificacao.receber_aviso_whatsapp,
-
-        telefone_whatsapp:
-            preferenciasNotificacao.telefone_whatsapp ?? '',
-    });
+            data: dadosNotificacao,
+            setData: setDadosNotificacao,
+            patch: salvarPreferencias,
+            processing: salvandoPreferencias,
+        } = useForm({
+            receber_aviso_email:
+                preferenciasNotificacao.receber_aviso_email ?? true,
+        });
 
     const enviarPreferencias: FormEventHandler = (event) => {
         event.preventDefault();
@@ -285,84 +278,41 @@ Props) {
                                 </div>
                             </label>
 
-                            <label
-                                htmlFor="modal_receber_aviso_whatsapp"
-                                className="flex cursor-pointer items-start gap-3 rounded-xl border border-border p-4 transition hover:bg-muted/50"
-                            >
+                            <div className="flex items-start gap-3 rounded-xl border border-dashed border-border bg-muted/40 p-4 opacity-70">
                                 <input
                                     id="modal_receber_aviso_whatsapp"
                                     type="checkbox"
-                                    checked={
-                                        dadosNotificacao.receber_aviso_whatsapp
-                                    }
-                                    onChange={(event) =>
-                                        setDadosNotificacao(
-                                            'receber_aviso_whatsapp',
-                                            event.target.checked,
-                                        )
-                                    }
-                                    className="mt-1 h-4 w-4 cursor-pointer rounded border-input"
+                                    checked={false}
+                                    disabled
+                                    readOnly
+                                    className="mt-1 h-4 w-4 cursor-not-allowed rounded border-input"
                                 />
 
-                                <div>
-                                    <p className="font-semibold text-foreground">
-                                        Receber pelo WhatsApp
-                                    </p>
+                                <div className="flex-1">
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        <p className="font-semibold text-foreground">
+                                            Receber pelo WhatsApp
+                                        </p>
+
+                                        <span className="rounded-full bg-muted px-2.5 py-1 text-xs font-semibold text-muted-foreground">
+                                            Indisponível no momento
+                                        </span>
+                                    </div>
 
                                     <p className="mt-1 text-sm text-muted-foreground">
-                                        Os avisos serão enviados para o número
-                                        informado abaixo.
+                                        A integração com o WhatsApp está temporariamente
+                                        indisponível. Os avisos continuam funcionando
+                                        normalmente por e-mail.
                                     </p>
                                 </div>
-                            </label>
+                            </div>
 
-                            {dadosNotificacao.receber_aviso_whatsapp && (
-                                <div className="space-y-2">
-                                    <label
-                                        htmlFor="modal_telefone_whatsapp"
-                                        className="text-sm font-medium text-foreground"
-                                    >
-                                        Número do WhatsApp
-                                    </label>
 
-                                    <input
-                                        id="modal_telefone_whatsapp"
-                                        type="tel"
-                                        value={
-                                            dadosNotificacao.telefone_whatsapp
-                                        }
-                                        onChange={(event) =>
-                                            setDadosNotificacao(
-                                                'telefone_whatsapp',
-                                                event.target.value,
-                                            )
-                                        }
-                                        placeholder="(11) 99999-9999"
-                                        autoComplete="tel"
-                                        className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
-                                        required
-                                    />
-
-                                    <p className="text-xs text-muted-foreground">
-                                        Informe o número com DDD.
-                                    </p>
-
-                                    {errosNotificacao.telefone_whatsapp && (
-                                        <p className="text-sm font-medium text-red-600">
-                                            {
-                                                errosNotificacao.telefone_whatsapp
-                                            }
-                                        </p>
-                                    )}
-                                </div>
-                            )}
 
                             {!dadosNotificacao.receber_aviso_email &&
-                                !dadosNotificacao.receber_aviso_whatsapp && (
+                                (
                                     <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
-                                        Você não receberá avisos de vencimento
-                                        enquanto as duas opções estiverem
-                                        desativadas.
+                                        Você não receberá avisos de vencimento enquanto o envio por e-mail estiver desativado.
                                     </div>
                                 )}
 

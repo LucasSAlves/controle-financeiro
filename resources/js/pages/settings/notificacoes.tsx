@@ -1,20 +1,16 @@
 import { Transition } from '@headlessui/react';
 import { Head, useForm } from '@inertiajs/react';
-import { FormEventHandler } from 'react';
+import { type FormEventHandler } from 'react';
 
 import HeadingSmall from '@/components/heading-small';
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import AppLayout from '@/layouts/app-layout';
 import SettingsLayout from '@/layouts/settings/layout';
 import { type BreadcrumbItem } from '@/types';
 
 type PreferenciasNotificacao = {
     receber_aviso_email: boolean;
-    receber_aviso_whatsapp: boolean;
-    telefone_whatsapp: string | null;
 };
 
 type NotificacoesProps = {
@@ -28,18 +24,20 @@ const breadcrumbs: BreadcrumbItem[] = [
     },
 ];
 
-export default function Notificacoes({ preferencias }: NotificacoesProps) {
-    const { data, setData, patch, errors, processing, recentlySuccessful } =
-        useForm({
-            receber_aviso_email:
-                preferencias.receber_aviso_email ?? true,
-
-            receber_aviso_whatsapp:
-                preferencias.receber_aviso_whatsapp ?? false,
-
-            telefone_whatsapp:
-                preferencias.telefone_whatsapp ?? '',
-        });
+export default function Notificacoes({
+    preferencias,
+}: NotificacoesProps) {
+    const {
+        data,
+        setData,
+        patch,
+        errors,
+        processing,
+        recentlySuccessful,
+    } = useForm({
+        receber_aviso_email:
+            preferencias.receber_aviso_email ?? true,
+    });
 
     const submit: FormEventHandler = (event) => {
         event.preventDefault();
@@ -60,7 +58,10 @@ export default function Notificacoes({ preferencias }: NotificacoesProps) {
                         description="Escolha como deseja receber os avisos das suas despesas."
                     />
 
-                    <form onSubmit={submit} className="space-y-6">
+                    <form
+                        onSubmit={submit}
+                        className="space-y-6"
+                    >
                         <div className="space-y-4">
                             <label
                                 htmlFor="receber_aviso_email"
@@ -69,7 +70,9 @@ export default function Notificacoes({ preferencias }: NotificacoesProps) {
                                 <input
                                     id="receber_aviso_email"
                                     type="checkbox"
-                                    checked={data.receber_aviso_email}
+                                    checked={
+                                        data.receber_aviso_email
+                                    }
                                     onChange={(event) =>
                                         setData(
                                             'receber_aviso_email',
@@ -85,96 +88,65 @@ export default function Notificacoes({ preferencias }: NotificacoesProps) {
                                     </p>
 
                                     <p className="text-sm text-neutral-600 dark:text-neutral-400">
-                                        Os avisos serão enviados para o e-mail
-                                        cadastrado na sua conta.
+                                        Os avisos serão enviados para
+                                        o e-mail cadastrado na sua
+                                        conta.
                                     </p>
                                 </div>
                             </label>
 
-                            <label
-                                htmlFor="receber_aviso_whatsapp"
-                                className="flex cursor-pointer items-start gap-3 rounded-lg border p-4 transition hover:bg-neutral-50 dark:hover:bg-neutral-900"
-                            >
+                            <div className="flex items-start gap-3 rounded-lg border border-dashed bg-neutral-50 p-4 opacity-70 dark:bg-neutral-900">
                                 <input
                                     id="receber_aviso_whatsapp"
                                     type="checkbox"
-                                    checked={data.receber_aviso_whatsapp}
-                                    onChange={(event) =>
-                                        setData(
-                                            'receber_aviso_whatsapp',
-                                            event.target.checked,
-                                        )
-                                    }
-                                    className="mt-1 h-4 w-4 cursor-pointer rounded border-neutral-300"
+                                    checked={false}
+                                    disabled
+                                    readOnly
+                                    className="mt-1 h-4 w-4 cursor-not-allowed rounded border-neutral-300"
                                 />
 
-                                <div className="space-y-1">
-                                    <p className="font-medium">
-                                        Receber avisos pelo WhatsApp
-                                    </p>
+                                <div className="flex-1 space-y-2">
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        <p className="font-medium">
+                                            Receber avisos pelo
+                                            WhatsApp
+                                        </p>
+
+                                        <span className="rounded-full bg-neutral-200 px-2.5 py-1 text-xs font-semibold text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">
+                                            Indisponível no momento
+                                        </span>
+                                    </div>
 
                                     <p className="text-sm text-neutral-600 dark:text-neutral-400">
-                                        Ao ativar esta opção, você autoriza o
-                                        envio de avisos de vencimento para o
-                                        número informado.
+                                        A integração com o WhatsApp
+                                        está temporariamente
+                                        indisponível. Os avisos
+                                        continuam funcionando
+                                        normalmente por e-mail.
                                     </p>
                                 </div>
-                            </label>
+                            </div>
                         </div>
 
-                        {data.receber_aviso_whatsapp && (
-                            <div className="grid gap-2">
-                                <Label htmlFor="telefone_whatsapp">
-                                    Número do WhatsApp
-                                </Label>
+                        <InputError
+                            message={
+                                errors.receber_aviso_email
+                            }
+                        />
 
-                                <Input
-                                    id="telefone_whatsapp"
-                                    type="tel"
-                                    value={data.telefone_whatsapp}
-                                    onChange={(event) =>
-                                        setData(
-                                            'telefone_whatsapp',
-                                            event.target.value,
-                                        )
-                                    }
-                                    placeholder="(11) 99999-9999"
-                                    autoComplete="tel"
-                                    required
-                                />
-
-                                <p className="text-sm text-neutral-600 dark:text-neutral-400">
-                                    Informe o número com DDD. O código do Brasil
-                                    será acrescentado automaticamente.
-                                </p>
-
-                                <InputError
-                                    className="mt-2"
-                                    message={errors.telefone_whatsapp}
-                                />
+                        {!data.receber_aviso_email && (
+                            <div className="rounded-lg border border-yellow-300 bg-yellow-50 p-4 text-sm text-yellow-800 dark:border-yellow-900 dark:bg-yellow-950 dark:text-yellow-200">
+                                Você não receberá avisos de
+                                vencimento enquanto o envio por
+                                e-mail estiver desativado.
                             </div>
                         )}
 
-                        <InputError
-                            message={errors.receber_aviso_email}
-                        />
-
-                        <InputError
-                            message={errors.receber_aviso_whatsapp}
-                        />
-
-                        {!data.receber_aviso_email &&
-                            !data.receber_aviso_whatsapp && (
-                                <div className="rounded-lg border border-yellow-300 bg-yellow-50 p-4 text-sm text-yellow-800 dark:border-yellow-900 dark:bg-yellow-950 dark:text-yellow-200">
-                                    Você não receberá avisos de vencimento
-                                    enquanto as duas opções estiverem
-                                    desativadas.
-                                </div>
-                            )}
-
                         <div className="flex items-center gap-4">
                             <Button disabled={processing}>
-                                Salvar preferências
+                                {processing
+                                    ? 'Salvando...'
+                                    : 'Salvar preferências'}
                             </Button>
 
                             <Transition
