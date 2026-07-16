@@ -46,6 +46,14 @@ class NewPasswordController extends Controller
         $status = Password::reset(
             $request->only('email', 'password', 'password_confirmation', 'token'),
             function ($user) use ($request) {
+                if (Hash::check($request->password, $user->password)) {
+                    throw ValidationException::withMessages([
+                        'password' => [
+                        'A nova senha deve ser diferente da senha atual.',
+                        ],
+                    ]);
+                }
+
                 $user->forceFill([
                     'password' => Hash::make($request->password),
                     'remember_token' => Str::random(60),
@@ -59,7 +67,10 @@ class NewPasswordController extends Controller
         // the application's home authenticated view. If there is an error we can
         // redirect them back to where they came from with their error message.
         if ($status == Password::PasswordReset) {
-            return to_route('login')->with('status', __($status));
+            return to_route('login')->with(
+                'status',
+                'Sua senha foi redefinida com sucesso.'
+            );
         }
 
         throw ValidationException::withMessages([
