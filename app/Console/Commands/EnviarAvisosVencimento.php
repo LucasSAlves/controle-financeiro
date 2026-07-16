@@ -19,6 +19,10 @@ class EnviarAvisosVencimento extends Command
         $hoje = Carbon::today(config('app.timezone'))->toDateString();
 
         $despesasPorUsuario = Movimentacao::with('user')
+            ->whereHas('user', function ($query) {
+                $query->where('receber_aviso_email', true)
+                    ->whereNotNull('email');
+            })
             ->where('tipo', 'despesa')
             ->where('status', 'pendente')
             ->whereDate('data', $hoje)
@@ -28,9 +32,6 @@ class EnviarAvisosVencimento extends Command
                     ->orWhereDate('aviso_vencimento_enviado_em', '!=', $hoje);
             })
             ->get()
-            ->filter(function ($movimentacao) {
-                return $movimentacao->user && $movimentacao->user->email;
-            })
             ->groupBy('user_id');
 
         if ($despesasPorUsuario->isEmpty()) {
