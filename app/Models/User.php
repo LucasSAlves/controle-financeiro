@@ -52,6 +52,9 @@ class User extends Authenticatable
             'receber_aviso_whatsapp' => 'boolean',
             'whatsapp_consentimento_em' => 'datetime',
             'preferencias_notificacao_definidas_em' => 'datetime',
+            'is_admin' => 'boolean',
+            'is_active' => 'boolean',
+            'is_primary_admin' => 'boolean',
         ];
     }
 }

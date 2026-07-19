@@ -6,6 +6,7 @@ use App\Http\Controllers\MovimentacaoController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\CategoriaController;
 use App\Http\Controllers\FormaPagamentoController;
+use App\Http\Controllers\Admin\UserController;
 
 Route::get('/', function () {
     return Inertia::render('welcome');
@@ -28,5 +29,24 @@ Route::middleware(['auth'])->group(function () {
     ->only(['index', 'store', 'update','destroy']);
 });
 
+Route::middleware(['auth', 'admin'])
+    ->prefix('admin')
+    ->name('admin.')
+    ->group(function () {
+        Route::get('usuarios', [UserController::class, 'index'])
+            ->name('users.index');
+
+        Route::patch('usuarios/{user}/bloquear', [UserController::class, 'block'])
+            ->name('users.block');
+
+        Route::patch('usuarios/{user}/reativar', [UserController::class, 'activate'])
+            ->name('users.activate');
+
+        Route::patch('usuarios/{user}/promover', [UserController::class, 'promote'])
+            ->name('users.promote');
+
+        Route::patch('usuarios/{user}/remover-administrador', [UserController::class, 'demote'])
+            ->name('users.demote');
+    });
 require __DIR__.'/settings.php';
 require __DIR__.'/auth.php';
