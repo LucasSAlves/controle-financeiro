@@ -9,9 +9,15 @@ import {
     SidebarMenuButton,
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
-import { type NavItem } from '@/types';
-import { Link } from '@inertiajs/react';
-import { CreditCard, LayoutGrid, Tags, WalletCards } from 'lucide-react';
+import { type NavItem, type SharedData } from '@/types';
+import { Link, usePage } from '@inertiajs/react';
+import {
+    CreditCard,
+    LayoutGrid,
+    Tags,
+    Users,
+    WalletCards,
+} from 'lucide-react';
 import AppLogo from './app-logo';
 
 const mainNavItems: NavItem[] = [
@@ -37,7 +43,20 @@ const mainNavItems: NavItem[] = [
     },
 ];
 
+const adminNavItems: NavItem[] = [
+    {
+        title: 'Usuários',
+        url: '/admin/usuarios',
+        icon: Users,
+    },
+];
+
 export function AppSidebar() {
+    const { auth } = usePage<SharedData>().props;
+
+    const podeAcessarAdministracao =
+        auth.user.is_admin && auth.user.is_active;
+
     return (
         <Sidebar collapsible="icon" variant="inset">
             <SidebarHeader>
@@ -53,7 +72,14 @@ export function AppSidebar() {
             </SidebarHeader>
 
             <SidebarContent>
-                <NavMain items={mainNavItems} />
+                <NavMain items={mainNavItems} label="Menu" />
+
+                {podeAcessarAdministracao && (
+                    <NavMain
+                        items={adminNavItems}
+                        label="Administração"
+                    />
+                )}
             </SidebarContent>
 
             <SidebarFooter>
