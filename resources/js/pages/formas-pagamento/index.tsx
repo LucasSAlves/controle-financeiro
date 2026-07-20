@@ -2,6 +2,7 @@ import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
 import { Head, router, useForm } from '@inertiajs/react';
 import { FormEvent, useState } from 'react';
+import { ConfirmDialog } from '@/components/confirm-dialog';
 
 type FormaPagamento = {
     id: number;
@@ -29,6 +30,10 @@ export default function FormasPagamentoIndex({
 }: Props) {
     const [formaEditando, setFormaEditando] =
         useState<FormaPagamento | null>(null);
+    const [formaParaExcluir, setFormaParaExcluir] =
+        useState<FormaPagamento | null>(null);
+
+    const [excluindo, setExcluindo] = useState(false);
 
     const {
         data,
@@ -81,20 +86,32 @@ export default function FormasPagamentoIndex({
         clearErrors();
     }
 
-    function excluirFormaPagamento(id: number) {
-        const confirmar = window.confirm(
-            'Tem certeza que deseja excluir esta forma de pagamento?'
-        );
+    function excluirFormaPagamento(formaPagamento: FormaPagamento) {
+        setFormaParaExcluir(formaPagamento);
+    }
 
-        if (!confirmar) {
+    function confirmarExclusaoFormaPagamento() {
+        if (!formaParaExcluir) {
             return;
         }
 
-        router.delete(`/formas-pagamento/${id}`, {
+        const formaPagamentoId = formaParaExcluir.id;
+
+        setExcluindo(true);
+
+        router.delete(`/formas-pagamento/${formaPagamentoId}`, {
+            preserveScroll: true,
+
             onSuccess: () => {
-                if (formaEditando?.id === id) {
+                if (formaEditando?.id === formaPagamentoId) {
                     cancelarEdicao();
                 }
+
+                setFormaParaExcluir(null);
+            },
+
+            onFinish: () => {
+                setExcluindo(false);
             },
         });
     }
@@ -212,7 +229,7 @@ export default function FormasPagamentoIndex({
                                             type="button"
                                             onClick={() =>
                                                 excluirFormaPagamento(
-                                                    formaPagamento.id
+                                                    formaPagamento
                                                 )
                                             }
                                             className="rounded-lg border border-red-300 px-3 py-1.5 text-xs font-medium text-red-700 hover:bg-red-50 dark:border-red-700 dark:text-red-400 dark:hover:bg-red-950"
@@ -226,6 +243,19 @@ export default function FormasPagamentoIndex({
                     )}
                 </div>
             </div>
+
+        {formaParaExcluir && (
+            <ConfirmDialog
+                open
+                title="Excluir forma de pagamento"
+                description={`Deseja realmente excluir a forma de pagamento "${formaParaExcluir.nome}"? Confirme para continuar.`}
+                confirmLabel="Excluir forma de pagamento"
+                variant="danger"
+                processing={excluindo}
+                onConfirm={confirmarExclusaoFormaPagamento}
+                onClose={() => setFormaParaExcluir(null)}
+            />
+        )}
         </AppLayout>
     );
 }

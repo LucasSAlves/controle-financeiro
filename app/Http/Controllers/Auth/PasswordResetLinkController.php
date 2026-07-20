@@ -16,9 +16,7 @@ class PasswordResetLinkController extends Controller
      */
     public function create(Request $request): Response
     {
-        return Inertia::render('auth/forgot-password', [
-            'status' => $request->session()->get('status'),
-        ]);
+        return Inertia::render('auth/forgot-password');
     }
 
     /**
@@ -36,6 +34,6 @@ class PasswordResetLinkController extends Controller
             $request->only('email')
         );
 
-        return back()->with('status', __('Se o e-mail informado estiver cadastrado, você receberá um link de redefinição de senha em breve.'));
+        return back()->with('success', __('Se o e-mail informado estiver cadastrado, você receberá um link de redefinição de senha em breve.'));
     }
 }

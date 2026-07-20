@@ -20,7 +20,6 @@ class PasswordController extends Controller
     {
         return Inertia::render('settings/password', [
             'mustVerifyEmail' => $request->user() instanceof MustVerifyEmail,
-            'status' => $request->session()->get('status'),
         ]);
     }
 
@@ -50,6 +49,9 @@ class PasswordController extends Controller
             'password' => Hash::make($validated['password']),
         ]);
 
-        return back();
+        return back()->with(
+            'success',
+            'Senha atualizada com sucesso.'
+        );return back();
     }
 }

@@ -1,7 +1,8 @@
+import { ConfirmDialog } from '@/components/confirm-dialog';
 import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
 import { Head, Link, router, useForm } from '@inertiajs/react';
-import { type FormEventHandler } from 'react';
+import { type FormEventHandler, useState } from 'react';
 
 type Resumo = {
     entradas: string | number;
@@ -93,6 +94,12 @@ export default function Dashboard({
     },
 }:
 Props) {
+        const [parcelaParaPagar, setParcelaParaPagar] =
+            useState<AvisoVencimentoItem | null>(null);
+
+        const [marcandoComoPago, setMarcandoComoPago] =
+            useState(false);
+
         const {
             data: dadosNotificacao,
             setData: setDadosNotificacao,
@@ -122,18 +129,30 @@ Props) {
         );
     }
 
-    function marcarComoPago(id: number) {
-        const confirmar = window.confirm('Deseja marcar esta parcela como paga?');
+    function marcarComoPago(parcela: AvisoVencimentoItem) {
+        setParcelaParaPagar(parcela);
+    }
 
-        if (!confirmar) {
+    function confirmarPagamento() {
+        if (!parcelaParaPagar) {
             return;
         }
 
+        setMarcandoComoPago(true);
+
         router.patch(
-            `/movimentacoes/${id}/marcar-como-pago`,
+            `/movimentacoes/${parcelaParaPagar.id}/marcar-como-pago`,
             {},
             {
                 preserveScroll: true,
+
+                onSuccess: () => {
+                    setParcelaParaPagar(null);
+                },
+
+                onFinish: () => {
+                    setMarcandoComoPago(false);
+                },
             },
         );
     }
@@ -192,7 +211,7 @@ Props) {
                                 <div className="flex gap-2">
                                     <button
                                         type="button"
-                                        onClick={() => marcarComoPago(parcela.id)}
+                                        onClick={() => marcarComoPago(parcela)}
                                         className="rounded-lg bg-green-600 px-3 py-1.5 text-center text-xs font-semibold text-white shadow-sm transition hover:bg-green-700"
                                     >
                                         Marcar como pago
@@ -550,6 +569,18 @@ Props) {
                     )}
                 </div>
             </div>
+            {parcelaParaPagar && (
+                <ConfirmDialog
+                    open
+                    title="Marcar parcela como paga"
+                    description={`Confirma o pagamento de "${parcelaParaPagar.descricao}", no valor de ${formatarMoeda(parcelaParaPagar.valor)}?`}
+                    confirmLabel="Marcar como paga"
+                    variant="info"
+                    processing={marcandoComoPago}
+                    onConfirm={confirmarPagamento}
+                    onClose={() => setParcelaParaPagar(null)}
+                />
+            )}
         </AppLayout>
     );
 }

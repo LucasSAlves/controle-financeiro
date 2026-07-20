@@ -1,5 +1,4 @@
 import { type BreadcrumbItem, type SharedData } from '@/types';
-import { Transition } from '@headlessui/react';
 import { Head, Link, useForm, usePage } from '@inertiajs/react';
 import { FormEventHandler } from 'react';
 
@@ -19,10 +18,14 @@ const breadcrumbs: BreadcrumbItem[] = [
     },
 ];
 
-export default function Profile({ mustVerifyEmail, status }: { mustVerifyEmail: boolean; status?: string }) {
+export default function Profile({
+    mustVerifyEmail,
+}: {
+    mustVerifyEmail: boolean;
+}) {
     const { auth } = usePage<SharedData>().props;
 
-    const { data, setData, patch, errors, processing, recentlySuccessful } = useForm({
+    const { data, setData, patch, errors, processing } = useForm({
         name: auth.user.name,
         email: auth.user.email,
     });
@@ -88,27 +91,11 @@ export default function Profile({ mustVerifyEmail, status }: { mustVerifyEmail: 
                                         Clique aqui para reenviar o e-mail de verificação.
                                     </Link>
                                 </p>
-
-                                {status === 'verification-link-sent' && (
-                                    <div className="mt-2 text-sm font-medium text-green-600">
-                                        Um novo link de verificação foi enviado para seu e-mail.
-                                    </div>
-                                )}
                             </div>
                         )}
 
                         <div className="flex items-center gap-4">
                             <Button disabled={processing}>Salvar</Button>
-
-                            <Transition
-                                show={recentlySuccessful}
-                                enter="transition ease-in-out"
-                                enterFrom="opacity-0"
-                                leave="transition ease-in-out"
-                                leaveTo="opacity-0"
-                            >
-                                <p className="text-sm text-neutral-600">Salvo</p>
-                            </Transition>
                         </div>
                     </form>
                 </div>
