@@ -2,6 +2,7 @@ import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
 import { Head, router, useForm } from '@inertiajs/react';
 import { FormEvent, useState } from 'react';
+import { ConfirmDialog } from '@/components/confirm-dialog';
 
 type CategoriaTipo = 'entrada' | 'despesa';
 
@@ -31,6 +32,11 @@ const breadcrumbs: BreadcrumbItem[] = [
 export default function CategoriasIndex({ categorias = [] }: Props) {
     const [categoriaEditando, setCategoriaEditando] =
         useState<Categoria | null>(null);
+
+    const [categoriaParaExcluir, setCategoriaParaExcluir] =
+        useState<Categoria | null>(null);
+
+    const [excluindo, setExcluindo] = useState(false);
 
     const {
         data,
@@ -85,20 +91,32 @@ export default function CategoriasIndex({ categorias = [] }: Props) {
         clearErrors();
     }
 
-    function excluirCategoria(id: number) {
-        const confirmar = window.confirm(
-            'Tem certeza que deseja excluir esta categoria?'
-        );
+    function excluirCategoria(categoria: Categoria) {
+        setCategoriaParaExcluir(categoria);
+    }
 
-        if (!confirmar) {
+    function confirmarExclusaoCategoria() {
+        if (!categoriaParaExcluir) {
             return;
         }
 
-        router.delete(`/categorias/${id}`, {
+        const categoriaId = categoriaParaExcluir.id;
+
+        setExcluindo(true);
+
+        router.delete(`/categorias/${categoriaId}`, {
+            preserveScroll: true,
+
             onSuccess: () => {
-                if (categoriaEditando?.id === id) {
+                if (categoriaEditando?.id === categoriaId) {
                     cancelarEdicao();
                 }
+
+                setCategoriaParaExcluir(null);
+            },
+
+            onFinish: () => {
+                setExcluindo(false);
             },
         });
     }
@@ -248,7 +266,7 @@ export default function CategoriasIndex({ categorias = [] }: Props) {
                                             <button
                                                 type="button"
                                                 onClick={() =>
-                                                    excluirCategoria(categoria.id)
+                                                    excluirCategoria(categoria)
                                                 }
                                                 className="rounded-lg border border-red-300 px-3 py-1.5 text-xs font-medium text-red-700 hover:bg-red-50 dark:border-red-700 dark:text-red-400 dark:hover:bg-red-950"
                                             >
@@ -297,7 +315,7 @@ export default function CategoriasIndex({ categorias = [] }: Props) {
                                             <button
                                                 type="button"
                                                 onClick={() =>
-                                                    excluirCategoria(categoria.id)
+                                                    excluirCategoria(categoria)
                                                 }
                                                 className="rounded-lg border border-red-300 px-3 py-1.5 text-xs font-medium text-red-700 hover:bg-red-50 dark:border-red-700 dark:text-red-400 dark:hover:bg-red-950"
                                             >
@@ -311,6 +329,18 @@ export default function CategoriasIndex({ categorias = [] }: Props) {
                     </div>
                 </div>
             </div>
+        {categoriaParaExcluir && (
+            <ConfirmDialog
+                open
+                title="Excluir categoria"
+                description={`Deseja realmente excluir a categoria "${categoriaParaExcluir.nome}"? Confirme para continuar.`}
+                confirmLabel="Excluir categoria"
+                variant="danger"
+                processing={excluindo}
+                onConfirm={confirmarExclusaoCategoria}
+                onClose={() => setCategoriaParaExcluir(null)}
+            />
+        )}
         </AppLayout>
     );
 }

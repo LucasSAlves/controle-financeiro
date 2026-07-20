@@ -2,6 +2,7 @@ import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
 import { Head, Link, router } from '@inertiajs/react';
 import { useState } from 'react';
+import { ConfirmDialog } from '@/components/confirm-dialog';
 
 type Movimentacao = {
     id: number;
@@ -106,6 +107,12 @@ export default function MovimentacoesIndex({
         useState<Movimentacao | null>(null);
     const [erroExclusao, setErroExclusao] = useState('');
 
+    const [movimentacaoParaPagar, setMovimentacaoParaPagar] =
+        useState<Movimentacao | null>(null);
+
+    const [marcandoComoPago, setMarcandoComoPago] =
+        useState(false);
+
     function excluirMovimentacao(movimentacao: Movimentacao) {
         setErroExclusao('');
         setMovimentacaoParaExcluir(movimentacao);
@@ -142,21 +149,31 @@ export default function MovimentacoesIndex({
         });
     }
 
-    function marcarComoPago(id: number) {
-        const confirmar = window.confirm(
-            'Deseja marcar esta movimentação como paga?'
-        );
+    function marcarComoPago(movimentacao: Movimentacao) {
+        setMovimentacaoParaPagar(movimentacao);
+    }
 
-        if (!confirmar) {
+    function confirmarPagamento() {
+        if (!movimentacaoParaPagar) {
             return;
         }
 
+        setMarcandoComoPago(true);
+
         router.patch(
-            `/movimentacoes/${id}/marcar-como-pago`,
+            `/movimentacoes/${movimentacaoParaPagar.id}/marcar-como-pago`,
             {},
             {
                 preserveScroll: true,
-            }
+
+                onSuccess: () => {
+                    setMovimentacaoParaPagar(null);
+                },
+
+                onFinish: () => {
+                    setMarcandoComoPago(false);
+                },
+            },
         );
     }
 
@@ -439,7 +456,7 @@ export default function MovimentacoesIndex({
                                                                 type="button"
                                                                 onClick={() =>
                                                                     marcarComoPago(
-                                                                        movimentacao.id
+                                                                        movimentacao
                                                                     )
                                                                 }
                                                                 className="rounded-lg bg-green-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-700"
@@ -474,6 +491,18 @@ export default function MovimentacoesIndex({
                     )}
                 </div>
             </div>
+            {movimentacaoParaPagar && (
+                <ConfirmDialog
+                    open
+                    title="Marcar como pago"
+                    description={`Confirma o pagamento da movimentação "${movimentacaoParaPagar.descricao}" no valor de ${formatarMoeda(movimentacaoParaPagar.valor)}?`}
+                    confirmLabel="Marcar como pago"
+                    variant="info"
+                    processing={marcandoComoPago}
+                    onConfirm={confirmarPagamento}
+                    onClose={() => setMovimentacaoParaPagar(null)}
+                />
+            )}
 
             {modalExclusaoAberto && movimentacaoParaExcluir && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">

@@ -24,6 +24,7 @@ import {
     UserPlus,
 } from 'lucide-react';
 import { useState } from 'react';
+import { ConfirmDialog } from '@/components/confirm-dialog';
 
 type User = {
     id: number;
@@ -49,10 +50,6 @@ type PaginatedUsers = {
 
 type Props = {
     users: PaginatedUsers;
-    status?: string;
-    errors?: {
-        user?: string;
-    };
 };
 
 type UserActionsProps = {
@@ -64,6 +61,18 @@ type UserActionsProps = {
     onPromote: (user: User) => void;
     onDemote: (user: User) => void;
 };
+
+type ConfirmationAction =
+    | 'block'
+    | 'activate'
+    | 'promote'
+    | 'demote';
+
+type ConfirmationState = {
+    action: ConfirmationAction;
+    user: User;
+} | null;
+
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
@@ -227,98 +236,98 @@ function UserActions({
     );
 }
 
-export default function AdminUsersIndex({
-    users,
-    status,
-    errors,
-}: Props) {
+export default function AdminUsersIndex({ users }: Props) {
     const { auth } = usePage<SharedData>().props;
-    const [processingUserId, setProcessingUserId] =
+    const [processingUserId,
+         setProcessingUserId] =
         useState<number | null>(null);
 
+    const [confirmation, setConfirmation] =
+    useState<ConfirmationState>(null);
+
     function bloquearUsuario(user: User) {
-        const confirmar = window.confirm(
-            `Deseja bloquear o acesso de ${user.name}?`,
-        );
-
-        if (!confirmar) {
-            return;
-        }
-
-        setProcessingUserId(user.id);
-
-        router.patch(
-            `/admin/usuarios/${user.id}/bloquear`,
-            {},
-            {
-                preserveScroll: true,
-                onFinish: () => setProcessingUserId(null),
-            },
-        );
+        setConfirmation({
+            action: 'block',
+            user,
+        });
     }
 
     function reativarUsuario(user: User) {
-        const confirmar = window.confirm(
-            `Deseja reativar o acesso de ${user.name}?`,
-        );
-
-        if (!confirmar) {
-            return;
-        }
-
-        setProcessingUserId(user.id);
-
-        router.patch(
-            `/admin/usuarios/${user.id}/reativar`,
-            {},
-            {
-                preserveScroll: true,
-                onFinish: () => setProcessingUserId(null),
-            },
-        );
+        setConfirmation({
+            action: 'activate',
+            user,
+        });
     }
 
     function promoverUsuario(user: User) {
-        const confirmar = window.confirm(
-            `Deseja promover ${user.name} a administrador?`,
-        );
-
-        if (!confirmar) {
-            return;
-        }
-
-        setProcessingUserId(user.id);
-
-        router.patch(
-            `/admin/usuarios/${user.id}/promover`,
-            {},
-            {
-                preserveScroll: true,
-                onFinish: () => setProcessingUserId(null),
-            },
-        );
+        setConfirmation({
+            action: 'promote',
+            user,
+        });
     }
 
     function removerAdministrador(user: User) {
-        const confirmar = window.confirm(
-            `Deseja remover a permissão de administrador de ${user.name}?`,
-        );
+        setConfirmation({
+            action: 'demote',
+            user,
+        });
+    }
 
-        if (!confirmar) {
+    function confirmarAcao() {
+        if (!confirmation) {
             return;
         }
+
+        const { action, user } = confirmation;
+
+        const routes: Record<ConfirmationAction, string> = {
+            block: `/admin/usuarios/${user.id}/bloquear`,
+            activate: `/admin/usuarios/${user.id}/reativar`,
+            promote: `/admin/usuarios/${user.id}/promover`,
+            demote: `/admin/usuarios/${user.id}/remover-administrador`,
+        };
 
         setProcessingUserId(user.id);
 
         router.patch(
-            `/admin/usuarios/${user.id}/remover-administrador`,
+            routes[action],
             {},
             {
                 preserveScroll: true,
+                onSuccess: () => setConfirmation(null),
                 onFinish: () => setProcessingUserId(null),
             },
         );
     }
+
+    const confirmationContent = confirmation
+        ? {
+            block: {
+                title: 'Bloquear acesso',
+                description: `Deseja bloquear o acesso de ${confirmation.user.name}? A conta será desconectada e não poderá entrar no sistema.`,
+                confirmLabel: 'Bloquear usuário',
+                variant: 'danger' as const,
+            },
+            activate: {
+                title: 'Reativar acesso',
+                description: `Deseja permitir que ${confirmation.user.name} volte a acessar o sistema?`,
+                confirmLabel: 'Reativar usuário',
+                variant: 'info' as const,
+            },
+            promote: {
+                title: 'Promover a administrador',
+                description: `${confirmation.user.name} terá acesso à área administrativa e poderá gerenciar outros usuários.`,
+                confirmLabel: 'Promover usuário',
+                variant: 'info' as const,
+            },
+            demote: {
+                title: 'Remover permissão administrativa',
+                description: `${confirmation.user.name} perderá o acesso à área administrativa e continuará como usuário comum.`,
+                confirmLabel: 'Remover permissão',
+                variant: 'warning' as const,
+            },
+        }[confirmation.action]
+        : null;
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
@@ -354,18 +363,6 @@ export default function AdminUsersIndex({
                         </p>
                     </div>
                 </div>
-
-                {status && (
-                    <div className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm font-medium text-green-700 dark:border-green-900 dark:bg-green-950 dark:text-green-300">
-                        {status}
-                    </div>
-                )}
-
-                {errors?.user && (
-                    <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300">
-                        {errors.user}
-                    </div>
-                )}
 
                 <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-900">
                     <div className="border-b border-gray-200 p-5 dark:border-gray-700">
@@ -587,6 +584,19 @@ export default function AdminUsersIndex({
                     )}
                 </div>
             </div>
+
+            {confirmation && confirmationContent && (
+                <ConfirmDialog
+                    open
+                    title={confirmationContent.title}
+                    description={confirmationContent.description}
+                    confirmLabel={confirmationContent.confirmLabel}
+                    variant={confirmationContent.variant}
+                    processing={processingUserId === confirmation.user.id}
+                    onConfirm={confirmarAcao}
+                    onClose={() => setConfirmation(null)}
+                />
+            )}
         </AppLayout>
     );
 }

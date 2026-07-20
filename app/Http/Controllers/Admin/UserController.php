@@ -32,7 +32,6 @@ class UserController extends Controller
 
         return Inertia::render('admin/users/index', [
             'users' => $users,
-            'status' => session('status'),
         ]);
     }
 
@@ -42,20 +41,22 @@ class UserController extends Controller
     public function block(Request $request, User $user): RedirectResponse
     {
         if ($user->is_primary_admin) {
-            return back()->withErrors([
-                'user' => 'O administrador principal não pode ser bloqueado.',
-            ]);
+            return back()->with(
+                'error',
+                'O administrador principal não pode ser bloqueado.',
+            );
         }
 
         if ($request->user()?->is($user)) {
-            return back()->withErrors([
-                'user' => 'Você não pode bloquear sua própria conta.',
-            ]);
+            return back()->with(
+                'error',
+                'Você não pode bloquear sua própria conta.',
+            );
         }
 
         if (! $user->is_active) {
             return back()->with(
-                'status',
+                'info',
                 "{$user->name} já está com o acesso bloqueado."
             );
         }
@@ -65,7 +66,7 @@ class UserController extends Controller
         ])->save();
 
         return back()->with(
-            'status',
+            'success',
             "O acesso de {$user->name} foi bloqueado com sucesso."
         );
     }
@@ -77,7 +78,7 @@ class UserController extends Controller
     {
         if ($user->is_active) {
             return back()->with(
-                'status',
+                'info',
                 "{$user->name} já está com o acesso ativo."
             );
         }
@@ -87,7 +88,7 @@ class UserController extends Controller
         ])->save();
 
         return back()->with(
-            'status',
+            'success',
             "O acesso de {$user->name} foi reativado com sucesso."
         );
     }
@@ -99,7 +100,7 @@ public function promote(User $user): RedirectResponse
 {
     if ($user->is_admin) {
         return back()->with(
-            'status',
+            'info',
             "{$user->name} já é administrador."
         );
     }
@@ -109,7 +110,7 @@ public function promote(User $user): RedirectResponse
     ])->save();
 
     return back()->with(
-        'status',
+        'success',
         "{$user->name} foi promovido a administrador com sucesso."
     );
 }
@@ -120,20 +121,22 @@ public function promote(User $user): RedirectResponse
 public function demote(Request $request, User $user): RedirectResponse
     {
         if ($user->is_primary_admin) {
-            return back()->withErrors([
-                'user' => 'A permissão do administrador principal não pode ser removida.',
-            ]);
+            return back()->with(
+                'error',
+                'A permissão do administrador principal não pode ser removida.'
+            );
         }
 
         if ($request->user()?->is($user)) {
-            return back()->withErrors([
-                'user' => 'Você não pode remover sua própria permissão de administrador.',
-            ]);
+            return back()->with(
+                'error',
+                'Você não pode remover sua própria permissão de administrador.'
+            );
         }
 
         if (! $user->is_admin) {
             return back()->with(
-                'status',
+                'info',
                 "{$user->name} já é um usuário comum."
             );
         }
@@ -143,7 +146,7 @@ public function demote(Request $request, User $user): RedirectResponse
         ])->save();
 
         return back()->with(
-            'status',
+            'success',
             "{$user->name} agora é um usuário comum."
         );
     }

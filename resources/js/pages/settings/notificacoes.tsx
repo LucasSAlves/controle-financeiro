@@ -1,4 +1,3 @@
-import { Transition } from '@headlessui/react';
 import { Head, useForm } from '@inertiajs/react';
 import { type FormEventHandler } from 'react';
 
@@ -33,7 +32,6 @@ export default function Notificacoes({
         patch,
         errors,
         processing,
-        recentlySuccessful,
     } = useForm({
         receber_aviso_email:
             preferencias.receber_aviso_email ?? true,
@@ -148,18 +146,6 @@ export default function Notificacoes({
                                     ? 'Salvando...'
                                     : 'Salvar preferências'}
                             </Button>
-
-                            <Transition
-                                show={recentlySuccessful}
-                                enter="transition ease-in-out"
-                                enterFrom="opacity-0"
-                                leave="transition ease-in-out"
-                                leaveTo="opacity-0"
-                            >
-                                <p className="text-sm text-neutral-600 dark:text-neutral-400">
-                                    Preferências salvas
-                                </p>
-                            </Transition>
                         </div>
                     </form>
                 </div>

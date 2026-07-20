@@ -17,11 +17,7 @@ interface ForgotPasswordForm {
     email: string;
 }
 
-interface ForgotPasswordProps {
-    status?: string;
-}
-
-export default function ForgotPassword({ status }: ForgotPasswordProps) {
+export default function ForgotPassword() {
     const { data, setData, post, processing, errors } =
         useForm<ForgotPasswordForm>({
             email: '',
@@ -86,11 +82,6 @@ export default function ForgotPassword({ status }: ForgotPasswordProps) {
                         </div>
 
                         <div className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
-                            {status && (
-                                <div className="mb-5 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm font-medium leading-6 text-green-700">
-                                    {status}
-                                </div>
-                            )}
 
                             <form
                                 className="flex flex-col gap-6"

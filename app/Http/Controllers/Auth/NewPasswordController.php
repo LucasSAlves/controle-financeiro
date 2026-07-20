@@ -63,12 +63,12 @@ class NewPasswordController extends Controller
             }
         );
 
-        // If the password was successfully reset, we will redirect the user back to
-        // the application's home authenticated view. If there is an error we can
-        // redirect them back to where they came from with their error message.
-        if ($status == Password::PasswordReset) {
+        // Se a senha tiver sido redefinida com sucesso, redirecionaremos o usuário de volta
+        // para a tela inicial autenticada do aplicativo. Se ocorrer um erro, podemos
+        // redirecioná-lo de volta à origem, exibindo a mensagem de erro.
+        if ($status === Password::PasswordReset) {
             return to_route('login')->with(
-                'status',
+                'success',
                 'Sua senha foi redefinida com sucesso.'
             );
         }

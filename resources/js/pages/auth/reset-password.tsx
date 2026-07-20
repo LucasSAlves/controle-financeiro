@@ -13,6 +13,7 @@ import {
     WalletCards,
 } from 'lucide-react';
 import { FormEventHandler, useState } from 'react';
+import { toast } from 'sonner';
 
 interface ResetPasswordProps {
     token: string;
@@ -26,6 +27,9 @@ interface ResetPasswordForm {
     password: string;
     password_confirmation: string;
 }
+
+const SAME_PASSWORD_ERROR =
+    'A nova senha deve ser diferente da senha atual.';
 
 export default function ResetPassword({
     token,
@@ -46,6 +50,12 @@ export default function ResetPassword({
         event.preventDefault();
 
         post(route('password.store'), {
+            onError: (formErrors) => {
+                if (formErrors.password === SAME_PASSWORD_ERROR) {
+                    toast.error(SAME_PASSWORD_ERROR);
+                }
+            },
+
             onFinish: () =>
                 reset('password', 'password_confirmation'),
         });
@@ -174,7 +184,13 @@ return (
                                         </button>
                                     </div>
 
-                                    <InputError message={errors.password} />
+                                    <InputError
+                                        message={
+                                            errors.password === SAME_PASSWORD_ERROR
+                                                ? undefined
+                                                : errors.password
+                                        }
+                                    />
                                 </div>
 
                                 <div className="grid gap-2">

@@ -8,18 +8,17 @@ import { Head, Link, useForm } from '@inertiajs/react';
 import { ArrowLeft, LoaderCircle, LockKeyhole, WalletCards } from 'lucide-react';
 import { FormEventHandler } from 'react';
 
-interface LoginForm {
+type LoginForm = {
     email: string;
     password: string;
     remember: boolean;
 }
 
 interface LoginProps {
-    status?: string;
     canResetPassword: boolean;
 }
 
-export default function Login({ status, canResetPassword }: LoginProps) {
+export default function Login({ canResetPassword }: LoginProps) {
     const { data, setData, post, processing, errors, reset } = useForm<LoginForm>({
         email: '',
         password: '',
@@ -85,11 +84,6 @@ export default function Login({ status, canResetPassword }: LoginProps) {
                         </div>
 
                         <div className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
-                            {status && (
-                                <div className="mb-4 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm font-medium text-green-700">
-                                    {status}
-                                </div>
-                            )}
 
                             <form className="flex flex-col gap-6" onSubmit={submit}>
                                 <div className="grid gap-5">
