@@ -19,6 +19,12 @@ type Movimentacao = {
     categoria: string | null;
     forma_pagamento: string | null;
     status: string;
+
+    parcelado: boolean;
+    parcela_fixa: boolean;
+    despesa_fixa_id: number | null;
+    parcela_atual: number | null;
+    total_parcelas: number | null;
 };
 
 type AvisoVencimentoItem = {
@@ -28,7 +34,10 @@ type AvisoVencimentoItem = {
     data: string;
     categoria: string | null;
     forma_pagamento: string | null;
+
     parcelado: boolean;
+    parcela_fixa: boolean;
+    despesa_fixa_id: number | null;
     parcela_atual: number | null;
     total_parcelas: number | null;
 };
@@ -74,6 +83,33 @@ function formatarMoeda(valor: string | number) {
 
 function formatarData(data: string) {
     return new Date(`${data}T00:00:00`).toLocaleDateString('pt-BR');
+}
+
+function identificarLancamento(
+    movimentacao: {
+        parcelado: boolean;
+        parcela_fixa: boolean;
+        despesa_fixa_id: number | null;
+        parcela_atual: number | null;
+        total_parcelas: number | null;
+    },
+): string | null {
+    if (
+        movimentacao.parcela_fixa &&
+        movimentacao.despesa_fixa_id
+    ) {
+        return 'Parcela fixa';
+    }
+
+    if (
+        movimentacao.parcelado &&
+        movimentacao.parcela_atual &&
+        movimentacao.total_parcelas
+    ) {
+        return `Parcela ${movimentacao.parcela_atual}/${movimentacao.total_parcelas}`;
+    }
+
+    return null;
 }
 
 export default function Dashboard({
@@ -196,7 +232,15 @@ Props) {
                             className="flex flex-col gap-3 py-4 md:flex-row md:items-center md:justify-between"
                         >
                             <div>
-                                <p className="font-semibold">{parcela.descricao}</p>
+                                <p className="font-semibold">
+                                    {parcela.descricao}
+                                </p>
+
+                                {identificarLancamento(parcela) && (
+                                    <p className="mt-1 text-xs font-semibold opacity-80">
+                                        {identificarLancamento(parcela)}
+                                    </p>
+                                )}
 
                                 <p className="mt-1 text-sm opacity-80">
                                     Vencimento: {formatarData(parcela.data)}
@@ -442,21 +486,21 @@ Props) {
                 {temAvisos && (
                     <div className="flex flex-col gap-4">
                         {renderizarListaAvisos(
-                            'Parcelas vencidas',
+                            'Despesas vencidas',
                             'Estas despesas estão pendentes e já passaram da data de vencimento.',
                             avisosVencimento.vencidas,
                             'vencida',
                         )}
 
                         {renderizarListaAvisos(
-                            'Parcelas vencem hoje',
+                            'Despesas vencem hoje',
                             'Estas despesas pendentes vencem hoje.',
                             avisosVencimento.vencemHoje,
                             'hoje',
                         )}
 
                         {renderizarListaAvisos(
-                            'Parcelas próximas do vencimento',
+                            'Despesas próximas do vencimento',
                             'Estas despesas pendentes vencem nos próximos 7 dias.',
                             avisosVencimento.proximosDias,
                             'proxima',
@@ -485,7 +529,7 @@ Props) {
 
                         <Link
                             href="/movimentacoes/create?tipo=despesa"
-                            className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-sm transition hover:opacity-90"
+                            className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-red-700"
                         >
                             Nova Despesa
                         </Link>
@@ -544,8 +588,16 @@ Props) {
                                                 </span>
                                             </td>
 
-                                            <td className="px-5 py-4 font-semibold text-foreground">
-                                                {movimentacao.descricao}
+                                            <td className="px-5 py-4">
+                                                <p className="font-semibold text-foreground">
+                                                    {movimentacao.descricao}
+                                                </p>
+
+                                                {identificarLancamento(movimentacao) && (
+                                                    <p className="mt-1 text-xs font-medium text-blue-600 dark:text-blue-400">
+                                                        {identificarLancamento(movimentacao)}
+                                                    </p>
+                                                )}
                                             </td>
 
                                             <td className="px-5 py-4 text-muted-foreground">
@@ -572,9 +624,9 @@ Props) {
             {parcelaParaPagar && (
                 <ConfirmDialog
                     open
-                    title="Marcar parcela como paga"
+                    title="Marcar como pago"
                     description={`Confirma o pagamento de "${parcelaParaPagar.descricao}", no valor de ${formatarMoeda(parcelaParaPagar.valor)}?`}
-                    confirmLabel="Marcar como paga"
+                    confirmLabel="Marcar como pago"
                     variant="info"
                     processing={marcandoComoPago}
                     onConfirm={confirmarPagamento}
