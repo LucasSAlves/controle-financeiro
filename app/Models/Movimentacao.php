@@ -30,6 +30,7 @@ class Movimentacao extends Model
         'total_parcelas',
         'grupo_parcelamento',
         'grupo_fixo_mensal',
+        'despesa_fixa_id',
     ];
 
     protected $casts = [
@@ -49,5 +50,10 @@ class Movimentacao extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function despesaFixa(): BelongsTo
+    {
+        return $this->belongsTo(DespesaFixa::class);
     }
 }

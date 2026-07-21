@@ -227,7 +227,11 @@ export default function MovimentacoesCreate({
 
                         <div>
                             <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                                {data.parcelado ? 'Valor da parcela' : 'Valor'}
+                                {data.parcelado
+                                    ? 'Valor da parcela'
+                                    : data.parcela_fixa
+                                        ? 'Valor mensal'
+                                        : 'Valor'}
                             </label>
 
                             <input
@@ -252,7 +256,13 @@ export default function MovimentacoesCreate({
 
                             {data.parcelado && (
                                 <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                                    Informe aqui o valor de cada parcela. O sistema repetirá esse valor mês a mês, sem dividir.
+                                    Informe o valor de cada parcela. O sistema não dividirá o valor automaticamente.
+                                </p>
+                            )}
+
+                            {data.parcela_fixa && (
+                                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                    Informe o valor mensal desta despesa fixa.
                                 </p>
                             )}
                         </div>
@@ -265,7 +275,7 @@ export default function MovimentacoesCreate({
 
                                 <select
                                     value={data.status}
-                                    disabled={data.parcelado}
+                                    disabled={data.parcelado || data.parcela_fixa}
                                     onChange={(event) =>
                                         setData('status', event.target.value)
                                     }
@@ -275,9 +285,11 @@ export default function MovimentacoesCreate({
                                     <option value="pendente">{statusPendenteDespesa}</option>
                                 </select>
 
-                                {data.parcelado && (
+                                {(data.parcelado || data.parcela_fixa) && (
                                     <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                                        Compras parceladas entram como pendentes.
+                                        {data.parcela_fixa
+                                            ? 'Despesas fixas mensais entram como pendentes.'
+                                            : 'Compras parceladas entram como pendentes.'}
                                     </p>
                                 )}
 
@@ -352,11 +364,11 @@ export default function MovimentacoesCreate({
                                     Forma de lançamento
                                 </h2>
 
-                                <div className="grid gap-4 md:grid-cols-2">
+                                <div className="grid gap-4 md:grid-cols-3">
                                     <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-gray-300 bg-white p-3 text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-white">
                                         <input
                                             type="radio"
-                                            checked={!data.parcelado}
+                                            checked={!data.parcelado && !data.parcela_fixa}
                                             onChange={() =>
                                                 setData({
                                                     ...data,
@@ -366,6 +378,7 @@ export default function MovimentacoesCreate({
                                                 })
                                             }
                                         />
+
                                         À vista
                                     </label>
 
@@ -378,11 +391,31 @@ export default function MovimentacoesCreate({
                                                     ...data,
                                                     parcelado: true,
                                                     parcela_fixa: false,
+                                                    total_parcelas: data.total_parcelas,
                                                     status: 'pendente',
                                                 })
                                             }
                                         />
+
                                         Parcelado
+                                    </label>
+
+                                    <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-gray-300 bg-white p-3 text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-white">
+                                        <input
+                                            type="radio"
+                                            checked={data.parcela_fixa}
+                                            onChange={() =>
+                                                setData({
+                                                    ...data,
+                                                    parcelado: false,
+                                                    parcela_fixa: true,
+                                                    total_parcelas: '',
+                                                    status: 'pendente',
+                                                })
+                                            }
+                                        />
+
+                                        Parcela fixa todos os meses
                                     </label>
                                 </div>
 
@@ -392,46 +425,50 @@ export default function MovimentacoesCreate({
                                     </p>
                                 )}
 
+                                {errors.parcela_fixa && (
+                                    <p className="mt-2 text-sm text-red-600">
+                                        {errors.parcela_fixa}
+                                    </p>
+                                )}
+
                                 {data.parcelado && (
-                                    <div className="mt-4 grid gap-4 md:grid-cols-2">
-                                        <div>
-                                            <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                                                {data.parcela_fixa ? 'Quantidade de meses' : 'Quantidade de parcelas'}
-                                            </label>
-
-                                            <input
-                                                type="number"
-                                                min="2"
-                                                max="120"
-                                                value={data.total_parcelas}
-                                                onChange={(event) =>
-                                                    setData('total_parcelas', event.target.value)
-                                                }
-                                                placeholder="Ex: 12"
-                                                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-950 dark:text-white"
-                                            />
-
-                                            {errors.total_parcelas && (
-                                                <p className="mt-1 text-sm text-red-600">
-                                                    {errors.total_parcelas}
-                                                </p>
-                                            )}
-                                        </div>
-
-                                        <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-gray-300 bg-white p-3 text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-white">
-                                            <input
-                                                type="checkbox"
-                                                checked={data.parcela_fixa}
-                                                onChange={(event) =>
-                                                    setData('parcela_fixa', event.target.checked)
-                                                }
-                                            />
-
-                                            Parcela fixa todos os meses
+                                    <div className="mt-4">
+                                        <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                                            Quantidade de parcelas
                                         </label>
 
-                                        <p className="text-xs text-gray-500 dark:text-gray-400 md:col-span-2">
-                                            A data informada acima será a data da primeira parcela. As próximas serão criadas mês a mês com o mesmo valor informado.
+                                        <input
+                                            type="number"
+                                            min="2"
+                                            max="120"
+                                            value={data.total_parcelas}
+                                            onChange={(event) =>
+                                                setData('total_parcelas', event.target.value)
+                                            }
+                                            placeholder="Ex: 12"
+                                            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                                        />
+
+                                        {errors.total_parcelas && (
+                                            <p className="mt-1 text-sm text-red-600">
+                                                {errors.total_parcelas}
+                                            </p>
+                                        )}
+
+                                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                            A data informada será a data da primeira parcela. As próximas serão criadas mês a mês.
+                                        </p>
+                                    </div>
+                                )}
+
+                                {data.parcela_fixa && (
+                                    <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 p-4 dark:border-blue-900 dark:bg-blue-950">
+                                        <p className="text-sm font-medium text-blue-900 dark:text-blue-100">
+                                            Esta despesa será lançada automaticamente todos os meses.
+                                        </p>
+
+                                        <p className="mt-1 text-xs text-blue-700 dark:text-blue-300">
+                                            Não existe quantidade de parcelas. A recorrência continuará ativa até ser encerrada.
                                         </p>
                                     </div>
                                 )}
@@ -559,9 +596,11 @@ export default function MovimentacoesCreate({
                                 ? 'Salvando...'
                                 : data.tipo === 'entrada' && data.fixo_mensal
                                     ? 'Salvar entrada fixa'
-                                    : data.parcelado
-                                        ? 'Salvar compra parcelada'
-                                        : 'Salvar movimentação'}
+                                    : data.parcela_fixa
+                                        ? 'Salvar despesa fixa'
+                                        : data.parcelado
+                                            ? 'Salvar compra parcelada'
+                                            : 'Salvar movimentação'}
                         </button>
                     </div>
                 </form>

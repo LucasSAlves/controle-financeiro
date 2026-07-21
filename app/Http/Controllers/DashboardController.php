@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Movimentacao;
+use App\Services\GerarDespesasFixasMensais;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -10,7 +11,10 @@ use Illuminate\Http\Request;
 
 class DashboardController extends Controller
 {
-    public function index(Request $request): Response
+    public function index(
+        Request $request,
+        GerarDespesasFixasMensais $geradorDespesasFixas
+    ): Response
     {
         $user = $request->user();
 
@@ -23,6 +27,32 @@ class DashboardController extends Controller
             ->endOfMonth();
 
         $hoje = \Carbon\Carbon::today();
+
+        /*
+        |--------------------------------------------------------------------------
+        | GERAR DESPESAS FIXAS NECESSÁRIAS
+        |--------------------------------------------------------------------------
+        | Gera:
+        | - o mês selecionado no Dashboard;
+        | - o mês atual;
+        | - o mês que contém o final dos próximos sete dias.
+        |
+        | A lista remove competências repetidas.
+        */
+        $competenciasParaGerar = collect([
+            $inicioDoMes->copy()->startOfMonth(),
+            $hoje->copy()->startOfMonth(),
+            $hoje->copy()->addDays(7)->startOfMonth(),
+        ])->unique(
+            fn ($competencia) => $competencia->format('Y-m')
+        );
+
+        foreach ($competenciasParaGerar as $competencia) {
+            $geradorDespesasFixas->gerarParaMes(
+                $competencia,
+                (int) Auth::id()
+            );
+        }
 
         $totalEntradas = Movimentacao::where('user_id', Auth::id())
             ->where('tipo', 'entrada')
@@ -52,6 +82,11 @@ class DashboardController extends Controller
                     'categoria' => $movimentacao->categoria,
                     'forma_pagamento' => $movimentacao->forma_pagamento,
                     'status' => $movimentacao->status,
+                    'parcelado' => $movimentacao->parcelado,
+                    'parcela_fixa' => $movimentacao->parcela_fixa,
+                    'despesa_fixa_id' => $movimentacao->despesa_fixa_id,
+                    'parcela_atual' => $movimentacao->parcela_atual,
+                    'total_parcelas' => $movimentacao->total_parcelas,
                 ];
             });
 
@@ -71,6 +106,8 @@ class DashboardController extends Controller
                     'categoria' => $movimentacao->categoria,
                     'forma_pagamento' => $movimentacao->forma_pagamento,
                     'parcelado' => $movimentacao->parcelado,
+                    'parcela_fixa' => $movimentacao->parcela_fixa,
+                    'despesa_fixa_id' => $movimentacao->despesa_fixa_id,
                     'parcela_atual' => $movimentacao->parcela_atual,
                     'total_parcelas' => $movimentacao->total_parcelas,
                 ];
@@ -92,6 +129,8 @@ class DashboardController extends Controller
                     'categoria' => $movimentacao->categoria,
                     'forma_pagamento' => $movimentacao->forma_pagamento,
                     'parcelado' => $movimentacao->parcelado,
+                    'parcela_fixa' => $movimentacao->parcela_fixa,
+                    'despesa_fixa_id' => $movimentacao->despesa_fixa_id,
                     'parcela_atual' => $movimentacao->parcela_atual,
                     'total_parcelas' => $movimentacao->total_parcelas,
                 ];
@@ -114,6 +153,8 @@ class DashboardController extends Controller
                     'categoria' => $movimentacao->categoria,
                     'forma_pagamento' => $movimentacao->forma_pagamento,
                     'parcelado' => $movimentacao->parcelado,
+                    'parcela_fixa' => $movimentacao->parcela_fixa,
+                    'despesa_fixa_id' => $movimentacao->despesa_fixa_id,
                     'parcela_atual' => $movimentacao->parcela_atual,
                     'total_parcelas' => $movimentacao->total_parcelas,
                 ];

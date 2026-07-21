@@ -15,6 +15,8 @@ type Movimentacao = {
     observacao: string | null;
 
     parcelado: boolean;
+    parcela_fixa: boolean;
+    despesa_fixa_id: number | null;
     parcela_atual: number | null;
     total_parcelas: number | null;
     grupo_parcelamento: string | null;
@@ -51,7 +53,7 @@ type FormData = {
     forma_pagamento: string;
     status: string;
     observacao: string;
-    modo_edicao: 'atual' | 'todos_fixo';
+    modo_edicao: 'atual' | 'todos_fixo' | 'futuros_fixa';
 };
 
 const breadcrumbs: BreadcrumbItem[] = [
@@ -125,7 +127,9 @@ export default function MovimentacoesEdit({
     function enviarFormulario(event: FormEvent) {
         event.preventDefault();
 
-        if (movimentacao.fixo_mensal) {
+        if ( movimentacao.fixo_mensal ||
+            (movimentacao.parcela_fixa && movimentacao.despesa_fixa_id)
+        ) {
             setModalEdicaoAberto(true);
             return;
         }
@@ -133,7 +137,9 @@ export default function MovimentacoesEdit({
         salvarMovimentacao('atual');
     }
 
-    function salvarMovimentacao(modoEdicao: 'atual' | 'todos_fixo') {
+    function salvarMovimentacao(
+        modoEdicao: 'atual' | 'todos_fixo' | 'futuros_fixa',
+    ) {
         transform((dados) => ({
             ...dados,
             modo_edicao: modoEdicao,
@@ -141,7 +147,12 @@ export default function MovimentacoesEdit({
 
         put(`/movimentacoes/${movimentacao.id}`, {
             preserveScroll: true,
+
             onSuccess: () => {
+                setModalEdicaoAberto(false);
+            },
+
+            onError: () => {
                 setModalEdicaoAberto(false);
             },
         });
@@ -183,6 +194,13 @@ export default function MovimentacoesEdit({
 
                             <select
                                 value={data.tipo}
+                                disabled={
+                                    movimentacao.fixo_mensal ||
+                                    Boolean(
+                                        movimentacao.parcela_fixa &&
+                                            movimentacao.despesa_fixa_id
+                                    )
+                                }
                                 onChange={(event) => {
                                     const novoTipo = event.target.value;
 
@@ -197,7 +215,7 @@ export default function MovimentacoesEdit({
                                                 : 'recebido',
                                     });
                                 }}
-                                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-700 dark:bg-gray-950 dark:text-white dark:disabled:bg-gray-800"
                             >
                                 <option value="entrada">Entrada</option>
                                 <option value="despesa">Despesa</option>
@@ -277,7 +295,7 @@ export default function MovimentacoesEdit({
                                 </p>
                             )}
                         </div>
-                                                {movimentacao.fixo_mensal && (
+                        {movimentacao.fixo_mensal && (
                             <div className="md:col-span-2 rounded-lg border border-green-200 bg-green-50 p-4 dark:border-green-800 dark:bg-green-950">
                                 <p className="text-sm font-semibold text-green-800 dark:text-green-200">
                                     Esta entrada faz parte de um lançamento mensal
@@ -286,6 +304,19 @@ export default function MovimentacoesEdit({
                                 <p className="mt-1 text-sm text-green-700 dark:text-green-300">
                                     Ao salvar, você poderá escolher se deseja alterar somente este mês
                                     ou todos os meses desta entrada fixa.
+                                </p>
+                            </div>
+                        )}
+
+                        {movimentacao.parcela_fixa &&
+                        movimentacao.despesa_fixa_id && (
+                            <div className="md:col-span-2 rounded-lg border border-blue-200 bg-blue-50 p-4 dark:border-blue-800 dark:bg-blue-950">
+                                <p className="text-sm font-semibold text-blue-800 dark:text-blue-200">
+                                    Esta despesa é fixa todos os meses
+                                </p>
+
+                                <p className="mt-1 text-sm text-blue-700 dark:text-blue-300">
+                                    Ao salvar, você poderá alterar somente este mês ou este mês e os próximos lançamentos.
                                 </p>
                             </div>
                         )}
@@ -478,43 +509,100 @@ export default function MovimentacoesEdit({
                             </div>
 
                             <div className="px-6 py-5">
-                                <div className="mb-4 rounded-xl border border-green-200 bg-green-50 p-4 dark:border-green-800 dark:bg-green-950">
-                                    <p className="text-sm font-semibold text-green-800 dark:text-green-200">
-                                        Esta entrada faz parte de um lançamento mensal
-                                    </p>
+                                {movimentacao.parcela_fixa &&
+                                movimentacao.despesa_fixa_id ? (
+                                    <>
+                                        <div className="mb-4 rounded-xl border border-blue-200 bg-blue-50 p-4 dark:border-blue-800 dark:bg-blue-950">
+                                            <p className="text-sm font-semibold text-blue-800 dark:text-blue-200">
+                                                Esta despesa é fixa todos os meses
+                                            </p>
 
-                                    <p className="mt-1 text-sm text-green-700 dark:text-green-300">
-                                        Deseja alterar somente este mês ou todos os meses desta entrada fixa?
-                                    </p>
-                                </div>
+                                            <p className="mt-1 text-sm text-blue-700 dark:text-blue-300">
+                                                Escolha se a alteração deverá valer somente para este mês ou também para os próximos lançamentos.
+                                            </p>
+                                        </div>
 
-                                <div className="space-y-3">
-                                    <button
-                                        type="button"
-                                        onClick={() => salvarMovimentacao('atual')}
-                                        disabled={processing}
-                                        className="w-full cursor-pointer rounded-xl border border-gray-300 bg-white px-4 py-3 text-left text-sm font-semibold text-gray-800 transition duration-200 hover:-translate-y-0.5 hover:border-blue-400 hover:bg-blue-50 hover:shadow-sm disabled:opacity-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:border-blue-500 dark:hover:bg-gray-800"
-                                    >
-                                        Alterar somente este mês
+                                        {movimentacao.status === 'pago' && (
+                                            <div className="mb-4 rounded-xl border border-green-200 bg-green-50 p-4 dark:border-green-800 dark:bg-green-950">
+                                                <p className="text-sm text-green-700 dark:text-green-300">
+                                                    Este lançamento já foi pago. Ao alterar os próximos meses, o lançamento pago será preservado como histórico.
+                                                </p>
+                                            </div>
+                                        )}
 
-                                        <span className="mt-1 block text-xs font-normal text-gray-500 dark:text-gray-400">
-                                            Altera apenas este lançamento mensal.
-                                        </span>
-                                    </button>
+                                        <div className="space-y-3">
+                                            <button
+                                                type="button"
+                                                onClick={() => salvarMovimentacao('atual')}
+                                                disabled={processing}
+                                                className="w-full cursor-pointer rounded-xl border border-gray-300 bg-white px-4 py-3 text-left text-sm font-semibold text-gray-800 transition duration-200 hover:-translate-y-0.5 hover:border-blue-400 hover:bg-blue-50 hover:shadow-sm disabled:opacity-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:border-blue-500 dark:hover:bg-gray-800"
+                                            >
+                                                Alterar somente este mês
 
-                                    <button
-                                        type="button"
-                                        onClick={() => salvarMovimentacao('todos_fixo')}
-                                        disabled={processing}
-                                        className="w-full cursor-pointer rounded-xl border border-green-300 bg-green-50 px-4 py-3 text-left text-sm font-semibold text-green-700 transition duration-200 hover:-translate-y-0.5 hover:border-green-400 hover:bg-green-100 hover:shadow-sm disabled:opacity-50 dark:border-green-800 dark:bg-green-950 dark:text-green-300 dark:hover:border-green-700 dark:hover:bg-green-900"
-                                    >
-                                        Alterar todos os meses
+                                                <span className="mt-1 block text-xs font-normal text-gray-500 dark:text-gray-400">
+                                                    Altera somente este lançamento. Os próximos meses manterão os dados atuais da despesa fixa.
+                                                </span>
+                                            </button>
 
-                                        <span className="mt-1 block text-xs font-normal text-green-600 dark:text-green-400">
-                                            Altera todos os lançamentos desta entrada fixa mensal.
-                                        </span>
-                                    </button>
-                                </div>
+                                            <button
+                                                type="button"
+                                                onClick={() =>
+                                                    salvarMovimentacao('futuros_fixa')
+                                                }
+                                                disabled={processing}
+                                                className="w-full cursor-pointer rounded-xl border border-blue-300 bg-blue-50 px-4 py-3 text-left text-sm font-semibold text-blue-700 transition duration-200 hover:-translate-y-0.5 hover:border-blue-400 hover:bg-blue-100 hover:shadow-sm disabled:opacity-50 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-300 dark:hover:border-blue-700 dark:hover:bg-blue-900"
+                                            >
+                                                Alterar este mês e os próximos
+
+                                                <span className="mt-1 block text-xs font-normal text-blue-600 dark:text-blue-400">
+                                                    Atualiza a regra mensal e todos os próximos lançamentos pendentes. Lançamentos pagos serão preservados.
+                                                </span>
+                                            </button>
+                                        </div>
+                                    </>
+                                ) : (
+                                    <>
+                                        <div className="mb-4 rounded-xl border border-green-200 bg-green-50 p-4 dark:border-green-800 dark:bg-green-950">
+                                            <p className="text-sm font-semibold text-green-800 dark:text-green-200">
+                                                Esta entrada faz parte de um lançamento mensal
+                                            </p>
+
+                                            <p className="mt-1 text-sm text-green-700 dark:text-green-300">
+                                                Deseja alterar somente este mês ou todos os meses desta entrada fixa?
+                                            </p>
+                                        </div>
+
+                                        <div className="space-y-3">
+                                            <button
+                                                type="button"
+                                                onClick={() => salvarMovimentacao('atual')}
+                                                disabled={processing}
+                                                className="w-full cursor-pointer rounded-xl border border-gray-300 bg-white px-4 py-3 text-left text-sm font-semibold text-gray-800 transition duration-200 hover:-translate-y-0.5 hover:border-blue-400 hover:bg-blue-50 hover:shadow-sm disabled:opacity-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:border-blue-500 dark:hover:bg-gray-800"
+                                            >
+                                                Alterar somente este mês
+
+                                                <span className="mt-1 block text-xs font-normal text-gray-500 dark:text-gray-400">
+                                                    Altera apenas este lançamento mensal.
+                                                </span>
+                                            </button>
+
+                                            <button
+                                                type="button"
+                                                onClick={() =>
+                                                    salvarMovimentacao('todos_fixo')
+                                                }
+                                                disabled={processing}
+                                                className="w-full cursor-pointer rounded-xl border border-green-300 bg-green-50 px-4 py-3 text-left text-sm font-semibold text-green-700 transition duration-200 hover:-translate-y-0.5 hover:border-green-400 hover:bg-green-100 hover:shadow-sm disabled:opacity-50 dark:border-green-800 dark:bg-green-950 dark:text-green-300 dark:hover:border-green-700 dark:hover:bg-green-900"
+                                            >
+                                                Alterar todos os meses
+
+                                                <span className="mt-1 block text-xs font-normal text-green-600 dark:text-green-400">
+                                                    Altera todos os lançamentos desta entrada fixa mensal.
+                                                </span>
+                                            </button>
+                                        </div>
+                                    </>
+                                )}
                             </div>
 
                             <div className="flex justify-end gap-3 border-t border-gray-200 px-6 py-4 dark:border-gray-700">
