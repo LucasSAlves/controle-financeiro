@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Movimentacao;
 use App\Services\GerarDespesasFixasMensais;
+use App\Services\GerarEntradasFixasMensais;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -13,7 +14,8 @@ class DashboardController extends Controller
 {
     public function index(
         Request $request,
-        GerarDespesasFixasMensais $geradorDespesasFixas
+        GerarDespesasFixasMensais $geradorDespesasFixas,
+        GerarEntradasFixasMensais $geradorEntradasFixas
     ): Response
     {
         $user = $request->user();
@@ -54,6 +56,18 @@ class DashboardController extends Controller
             );
         }
 
+        /*
+        |--------------------------------------------------------------------------
+        | GERAR ENTRADAS FIXAS DO MÊS SELECIONADO
+        |--------------------------------------------------------------------------
+        | Antes de calcular os totais, garante que as entradas fixas
+        | estejam lançadas no mês consultado no Dashboard.
+        */
+        $geradorEntradasFixas->gerarParaMes(
+            $inicioDoMes,
+            (int) Auth::id()
+        );
+
         $totalEntradas = Movimentacao::where('user_id', Auth::id())
             ->where('tipo', 'entrada')
             ->whereBetween('data', [$inicioDoMes, $fimDoMes])
@@ -85,6 +99,10 @@ class DashboardController extends Controller
                     'parcelado' => $movimentacao->parcelado,
                     'parcela_fixa' => $movimentacao->parcela_fixa,
                     'despesa_fixa_id' => $movimentacao->despesa_fixa_id,
+
+                    'fixo_mensal' => $movimentacao->fixo_mensal,
+                    'entrada_fixa_id' => $movimentacao->entrada_fixa_id,
+
                     'parcela_atual' => $movimentacao->parcela_atual,
                     'total_parcelas' => $movimentacao->total_parcelas,
                 ];

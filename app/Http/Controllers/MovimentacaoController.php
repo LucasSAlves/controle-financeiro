@@ -8,6 +8,9 @@ use App\Models\Movimentacao;
 use App\Models\DespesaFixa;
 use App\Models\DespesaFixaExcecao;
 use App\Services\GerarDespesasFixasMensais;
+use App\Models\EntradaFixa;
+use App\Models\EntradaFixaExcecao;
+use App\Services\GerarEntradasFixasMensais;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
@@ -20,7 +23,8 @@ class MovimentacaoController extends Controller
 {
     public function index(
         Request $request,
-        GerarDespesasFixasMensais $geradorDespesasFixas
+        GerarDespesasFixasMensais $geradorDespesasFixas,
+        GerarEntradasFixasMensais $geradorEntradasFixas
     ): Response {
         $mesSelecionado = $request->input('mes', now()->format('Y-m'));
         $tipoSelecionado = $request->input('tipo', 'todos');
@@ -37,6 +41,15 @@ class MovimentacaoController extends Controller
         * no mês que o usuário está consultando.
         */
         $geradorDespesasFixas->gerarParaMes(
+            $inicioDoMes,
+            (int) Auth::id()
+        );
+
+        /*
+        * Garante que as entradas fixas ativas estejam cadastradas
+        * no mês que o usuário está consultando.
+        */
+        $geradorEntradasFixas->gerarParaMes(
             $inicioDoMes,
             (int) Auth::id()
         );
@@ -73,6 +86,7 @@ class MovimentacaoController extends Controller
                     'parcelado' => $movimentacao->parcelado,
                     'parcela_fixa' => $movimentacao->parcela_fixa,
                     'despesa_fixa_id' => $movimentacao->despesa_fixa_id,
+                    'entrada_fixa_id' => $movimentacao->entrada_fixa_id,
                     'parcela_atual' => $movimentacao->parcela_atual,
                     'total_parcelas' => $movimentacao->total_parcelas,
                     'grupo_parcelamento' => $movimentacao->grupo_parcelamento,
@@ -152,7 +166,8 @@ class MovimentacaoController extends Controller
 
     public function store(
         Request $request,
-        GerarDespesasFixasMensais $geradorDespesasFixas
+        GerarDespesasFixasMensais $geradorDespesasFixas,
+        GerarEntradasFixasMensais $geradorEntradasFixas
     ): RedirectResponse
     {
         $mensagens = [
@@ -189,9 +204,6 @@ class MovimentacaoController extends Controller
             'total_parcelas.max' => 'A quantidade de parcelas não pode ser maior que 120.',
 
             'fixo_mensal.boolean' => 'O campo entrada fixa mensal deve ser verdadeiro ou falso.',
-            'total_meses.integer' => 'A quantidade de meses deve ser um número inteiro.',
-            'total_meses.min' => 'A quantidade de meses deve ser no mínimo 2.',
-            'total_meses.max' => 'A quantidade de meses não pode ser maior que 120.',
         ];
 
         $dados = $request->validate([
@@ -209,7 +221,7 @@ class MovimentacaoController extends Controller
             'total_parcelas' => ['nullable', 'integer', 'min:2', 'max:120'],
 
             'fixo_mensal' => ['nullable', 'boolean'],
-            'total_meses' => ['nullable', 'integer', 'min:2', 'max:120'],
+
         ], $mensagens);
 
         $parcelado = $request->boolean('parcelado');
@@ -256,61 +268,47 @@ class MovimentacaoController extends Controller
                 ->withInput();
         }
 
-        if ($fixoMensal && empty($dados['total_meses'])) {
-            return back()
-                ->withErrors([
-                    'total_meses' => 'Informe a quantidade de meses.',
-                ])
-                ->withInput();
-        }
-
         /*
-        --------------------------------------------------------------------------
+        |--------------------------------------------------------------------------
         | ENTRADA FIXA MENSAL
-        --------------------------------------------------------------------------
+        |--------------------------------------------------------------------------
+        | Não possui quantidade de meses.
+        | O lançamento de cada mês será gerado automaticamente.
         */
         if ($dados['tipo'] === 'entrada' && $fixoMensal) {
-            $totalMeses = (int) $dados['total_meses'];
-            $grupoFixoMensal = (string) Str::uuid();
+            DB::transaction(function () use (
+                $dados,
+                $geradorEntradasFixas
+            ) {
+                $dataInicio = \Carbon\Carbon::parse($dados['data']);
 
-            $dataPrimeiroMes = \Carbon\Carbon::parse($dados['data']);
-            $valorMensal = (float) $dados['valor'];
-
-            for ($mes = 1; $mes <= $totalMeses; $mes++) {
-                Movimentacao::create([
+                EntradaFixa::create([
                     'user_id' => Auth::id(),
-                    'tipo' => 'entrada',
-                    'descricao' => $dados['descricao'] . ' - Mensal ' . $mes . '/' . $totalMeses,
-                    'valor' => $valorMensal,
-                    'data' => $dataPrimeiroMes
-                        ->copy()
-                        ->addMonthsNoOverflow($mes - 1)
-                        ->format('Y-m-d'),
+                    'descricao' => $dados['descricao'],
+                    'valor' => $dados['valor'],
+                    'data_inicio' => $dataInicio->format('Y-m-d'),
+                    'dia_recebimento' => $dataInicio->day,
                     'categoria' => $dados['categoria'] ?? null,
-                    'forma_pagamento' => null,
-                    'status' => 'recebido',
                     'observacao' => $dados['observacao'] ?? null,
-
-                    'parcelado' => false,
-                    'parcela_fixa' => false,
-                    'fixo_mensal' => true,
-
-                    'mes_atual' => $mes,
-                    'total_meses' => $totalMeses,
-
-                    'parcela_atual' => null,
-                    'total_parcelas' => null,
-
-                    'grupo_parcelamento' => null,
-                    'grupo_fixo_mensal' => $grupoFixoMensal,
-
-                    'data_pagamento' => null,
+                    'ativa' => true,
+                    'encerrada_em' => null,
                 ]);
-            }
+
+                /*
+                * Cria imediatamente o lançamento do primeiro mês.
+                */
+                $geradorEntradasFixas->gerarParaMes(
+                    $dataInicio,
+                    (int) Auth::id()
+                );
+            });
 
             return redirect()
                 ->route('movimentacoes.index')
-                ->with('success', 'Entrada fixa mensal cadastrada com sucesso.');
+                ->with(
+                    'success',
+                    'Entrada fixa mensal cadastrada com sucesso.'
+                );
         }
 
         /*
@@ -505,6 +503,7 @@ class MovimentacaoController extends Controller
             'parcelado' => $movimentacao->parcelado,
             'parcela_fixa' => $movimentacao->parcela_fixa,
             'despesa_fixa_id' => $movimentacao->despesa_fixa_id,
+            'entrada_fixa_id' => $movimentacao->entrada_fixa_id,
             'parcela_atual' => $movimentacao->parcela_atual,
             'total_parcelas' => $movimentacao->total_parcelas,
             'grupo_parcelamento' => $movimentacao->grupo_parcelamento,
@@ -574,6 +573,8 @@ class MovimentacaoController extends Controller
     | EDIÇÃO DE DESPESA FIXA MENSAL
     |--------------------------------------------------------------------------
     */
+
+
     if (
         $movimentacao->parcela_fixa &&
         $movimentacao->despesa_fixa_id
@@ -814,6 +815,223 @@ class MovimentacaoController extends Controller
         }
     }
 
+    /*
+    |--------------------------------------------------------------------------
+    | EDIÇÃO DE ENTRADA FIXA MENSAL
+    |--------------------------------------------------------------------------
+    */
+    if (
+        $movimentacao->fixo_mensal &&
+        $movimentacao->entrada_fixa_id
+    ) {
+        if ($dados['tipo'] !== 'entrada') {
+            return back()
+                ->withErrors([
+                    'tipo' => 'Uma entrada fixa não pode ser transformada em despesa.',
+                ])
+                ->withInput();
+        }
+
+        $dataInformada = \Carbon\Carbon::parse($dados['data']);
+
+        $competenciaAtual = $movimentacao->data
+            ->copy()
+            ->startOfMonth();
+
+        /*
+        * Em uma recorrência mensal, o usuário pode alterar
+        * o dia do recebimento, mas não trocar a competência.
+        */
+        if (!$dataInformada->isSameMonth($competenciaAtual)) {
+            return back()
+                ->withErrors([
+                    'data' => 'Para uma entrada fixa, altere somente o dia do recebimento, mantendo o mesmo mês e ano.',
+                ])
+                ->withInput();
+        }
+
+        /*
+        * Altera somente o lançamento selecionado.
+        * A regra dos próximos meses permanece igual.
+        */
+        if ($modoEdicao === 'atual') {
+            $movimentacao->update([
+                'tipo' => 'entrada',
+                'descricao' => $dados['descricao'],
+                'valor' => $dados['valor'],
+                'data' => $dataInformada->format('Y-m-d'),
+                'categoria' => $dados['categoria'] ?? null,
+                'forma_pagamento' => null,
+                'status' => 'recebido',
+                'observacao' => $dados['observacao'] ?? null,
+                'data_pagamento' => null,
+            ]);
+
+            return redirect()
+                ->route('movimentacoes.index')
+                ->with(
+                    'success',
+                    'Entrada fixa atualizada somente neste mês.'
+                );
+        }
+
+        /*
+        * Cria uma nova regra a partir da competência escolhida.
+        * Os meses anteriores continuam vinculados à regra antiga.
+        */
+        if ($modoEdicao === 'futuros_fixa') {
+            $entradaFixaAtual = EntradaFixa::where(
+                'user_id',
+                Auth::id()
+            )
+                ->where(
+                    'id',
+                    $movimentacao->entrada_fixa_id
+                )
+                ->first();
+
+            if (!$entradaFixaAtual) {
+                return back()->withErrors([
+                    'edicao' => 'A regra desta entrada fixa não foi encontrada.',
+                ]);
+            }
+
+            DB::transaction(function () use (
+                $dados,
+                $movimentacao,
+                $entradaFixaAtual,
+                $dataInformada,
+                $competenciaAtual
+            ) {
+                $competenciaNovaRegra = $competenciaAtual
+                    ->copy()
+                    ->startOfMonth();
+
+                $diaRecebimento = $dataInformada->day;
+
+                $dataInicioNovaRegra = $competenciaNovaRegra
+                    ->copy()
+                    ->day(
+                        min(
+                            $diaRecebimento,
+                            $competenciaNovaRegra->daysInMonth
+                        )
+                    );
+
+                /*
+                * A regra antiga continuará válida somente
+                * para os meses anteriores.
+                */
+                $entradaFixaAtual->update([
+                    'ativa' => false,
+                    'encerrada_em' => $competenciaNovaRegra
+                        ->format('Y-m-d'),
+                ]);
+
+                /*
+                * Cria a nova regra para o mês selecionado
+                * e todos os próximos.
+                */
+                $novaEntradaFixa = EntradaFixa::create([
+                    'user_id' => Auth::id(),
+                    'descricao' => $dados['descricao'],
+                    'valor' => $dados['valor'],
+                    'data_inicio' => $dataInicioNovaRegra->format('Y-m-d'),
+                    'dia_recebimento' => $diaRecebimento,
+                    'categoria' => $dados['categoria'] ?? null,
+                    'observacao' => $dados['observacao'] ?? null,
+                    'ativa' => true,
+                    'encerrada_em' => null,
+                ]);
+
+                /*
+                * Transfere para a nova regra os meses que o usuário
+                * já havia escolhido ignorar.
+                */
+                EntradaFixaExcecao::where(
+                    'entrada_fixa_id',
+                    $entradaFixaAtual->id
+                )
+                    ->whereDate(
+                        'competencia',
+                        '>=',
+                        $competenciaNovaRegra->format('Y-m-d')
+                    )
+                    ->update([
+                        'entrada_fixa_id' => $novaEntradaFixa->id,
+                    ]);
+
+                /*
+                * Atualiza os lançamentos do mês selecionado
+                * e dos próximos meses que já foram gerados.
+                */
+                $movimentacoesFuturas = Movimentacao::where(
+                    'user_id',
+                    Auth::id()
+                )
+                    ->where(
+                        'entrada_fixa_id',
+                        $entradaFixaAtual->id
+                    )
+                    ->whereDate(
+                        'data',
+                        '>=',
+                        $competenciaNovaRegra->format('Y-m-d')
+                    )
+                    ->get();
+
+                foreach ($movimentacoesFuturas as $item) {
+                    $competenciaItem = $item->data
+                        ->copy()
+                        ->startOfMonth();
+
+                    $novaDataItem = $competenciaItem
+                        ->copy()
+                        ->day(
+                            min(
+                                $diaRecebimento,
+                                $competenciaItem->daysInMonth
+                            )
+                        );
+
+                    $item->update([
+                        'entrada_fixa_id' => $novaEntradaFixa->id,
+                        'tipo' => 'entrada',
+                        'descricao' => $dados['descricao'],
+                        'valor' => $dados['valor'],
+                        'data' => $novaDataItem->format('Y-m-d'),
+                        'categoria' => $dados['categoria'] ?? null,
+                        'forma_pagamento' => null,
+                        'status' => 'recebido',
+                        'observacao' => $dados['observacao'] ?? null,
+
+                        'parcelado' => false,
+                        'parcela_fixa' => false,
+                        'fixo_mensal' => true,
+
+                        'mes_atual' => null,
+                        'total_meses' => null,
+
+                        'parcela_atual' => null,
+                        'total_parcelas' => null,
+
+                        'grupo_parcelamento' => null,
+                        'grupo_fixo_mensal' => null,
+
+                        'data_pagamento' => null,
+                    ]);
+                }
+            });
+
+            return redirect()
+                ->route('movimentacoes.index')
+                ->with(
+                    'success',
+                    'Entrada fixa atualizada neste mês e nos próximos.'
+                );
+        }
+    }
+
     if ($movimentacao->fixo_mensal && $modoEdicao === 'todos_fixo') {
         $descricaoBase = preg_replace(
             '/\s-\sMensal\s\d+\/\d+$/',
@@ -926,24 +1144,112 @@ class MovimentacaoController extends Controller
         }
 
         /*
-
-        >>> ENTRADA FIXA MENSAL
-
-
-
-        | atual = exclui somente este mês
-        | todos_fixo = exclui todos os meses do mesmo grupo
-        */
-
-                /*
         |--------------------------------------------------------------------------
-        | DESPESA FIXA MENSAL
+        | ENTRADA FIXA MENSAL — NOVO MODELO
         |--------------------------------------------------------------------------
-        | atual = exclui somente este mês e registra uma exceção
+        | atual = exclui somente o lançamento selecionado e registra uma exceção
         | encerrar_fixa = encerra a recorrência deste mês em diante
         */
+        if (
+            $movimentacao->fixo_mensal &&
+            $movimentacao->entrada_fixa_id
+        ) {
+            $entradaFixa = EntradaFixa::where(
+                'user_id',
+                Auth::id()
+            )
+                ->where(
+                    'id',
+                    $movimentacao->entrada_fixa_id
+                )
+                ->first();
 
-        if ($movimentacao->fixo_mensal) {
+            if (!$entradaFixa) {
+                return back()->withErrors([
+                    'exclusao' => 'A regra desta entrada fixa não foi encontrada.',
+                ]);
+            }
+
+            $competencia = \Carbon\Carbon::parse(
+                $movimentacao->data
+            )->startOfMonth();
+
+            /*
+            * Encerra a entrada fixa a partir do mês selecionado.
+            * Todos os meses anteriores permanecem preservados.
+            */
+            if ($modoExclusao === 'encerrar_fixa') {
+                /*
+                * Se o lançamento selecionado já foi recebido,
+                * ele permanece no histórico e a recorrência
+                * termina a partir do próximo mês.
+                */
+                $quantidadeExcluida = DB::transaction(
+                    function () use (
+                        $entradaFixa,
+                        $movimentacao,
+                        $competencia
+                    ) {
+                        $entradaFixa->update([
+                            'ativa' => false,
+                            'encerrada_em' => $competencia->format('Y-m-d')
+                        ]);
+
+                        /*
+                        * Remove somente o mês selecionado e os próximos
+                        * que já tenham sido gerados.
+                        */
+                        return Movimentacao::where(
+                            'user_id',
+                            Auth::id()
+                        )
+                            ->where(
+                                'entrada_fixa_id',
+                                $movimentacao->entrada_fixa_id
+                            )
+                            ->whereDate(
+                                'data',
+                                '>=',
+                                $competencia->format('Y-m-d')
+                            )
+                            ->delete();
+                    }
+                );
+
+                return redirect()
+                    ->route('movimentacoes.index')
+                    ->with(
+                        'success',
+                        "Entrada fixa encerrada com sucesso. {$quantidadeExcluida} lançamento(s) removido(s)."
+                    );
+            }
+
+            /*
+            * Registra que somente esta competência foi ignorada.
+            * Assim, o gerador não criará novamente a entrada neste mês.
+            */
+            DB::transaction(function () use (
+                $movimentacao,
+                $competencia
+            ) {
+                EntradaFixaExcecao::firstOrCreate([
+                    'entrada_fixa_id' => $movimentacao->entrada_fixa_id,
+                    'competencia' => $competencia->format('Y-m-d'),
+                ]);
+
+                $movimentacao->delete();
+            });
+
+            return redirect()
+                ->route('movimentacoes.index')
+                ->with(
+                    'success',
+                    'Lançamento da entrada fixa excluído somente deste mês.'
+                );
+        }
+
+        if ( $movimentacao->fixo_mensal &&
+            !$movimentacao->entrada_fixa_id) {
             if ($modoExclusao === 'todos_fixo') {
                 $quantidadeExcluida = Movimentacao::where(
                     'user_id',

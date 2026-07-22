@@ -18,6 +18,7 @@ type Movimentacao = {
     parcelado?: boolean;
     parcela_fixa?: boolean;
     despesa_fixa_id?: number | null;
+    entrada_fixa_id?: number | null;
     parcela_atual?: number | null;
     total_parcelas?: number | null;
 
@@ -150,8 +151,17 @@ export default function MovimentacoesIndex({
                 modo_exclusao: modoExclusao,
             },
             preserveScroll: true,
+
             onSuccess: () => {
                 fecharModalExclusao();
+            },
+
+            onError: (errors) => {
+                setErroExclusao(
+                    typeof errors.exclusao === 'string'
+                        ? errors.exclusao
+                        : 'Não foi possível concluir a exclusão.',
+                );
             },
         });
     }
@@ -418,10 +428,9 @@ export default function MovimentacoesIndex({
                                                         </p>
                                                     )}
 
-                                                    {movimentacao.parcela_fixa &&
-                                                    movimentacao.despesa_fixa_id && (
-                                                        <p className="mt-1 text-xs font-medium text-blue-600 dark:text-blue-400">
-                                                            Parcela fixa
+                                                    {movimentacao.fixo_mensal && (
+                                                        <p className="mt-1 text-xs font-medium text-green-600 dark:text-green-400">
+                                                            Entrada fixa
                                                         </p>
                                                     )}
                                             </td>
@@ -547,53 +556,101 @@ export default function MovimentacoesIndex({
                             {erroExclusao ? (
                                 <div className="rounded-xl border border-red-200 bg-red-50 p-4 dark:border-red-800 dark:bg-red-950">
                                     <p className="text-sm font-semibold text-red-700 dark:text-red-300">
-                                        Esta parcela não pode ser excluída
+                                        Não foi possível excluir
                                     </p>
 
                                     <p className="mt-1 text-sm text-red-600 dark:text-red-400">
                                         {erroExclusao}
                                     </p>
                                 </div>
-                                ) : movimentacaoParaExcluir.fixo_mensal ? (
-                                <>
-                                    <div className="mb-4 rounded-xl border border-green-200 bg-green-50 p-4 dark:border-green-800 dark:bg-green-950">
-                                        <p className="text-sm font-semibold text-green-800 dark:text-green-200">
-                                            Esta entrada faz parte de um lançamento mensal
-                                        </p>
+                                ) :  movimentacaoParaExcluir.fixo_mensal ? (
+                                movimentacaoParaExcluir.entrada_fixa_id ? (
+                                    <>
+                                        <div className="mb-4 rounded-xl border border-green-200 bg-green-50 p-4 dark:border-green-800 dark:bg-green-950">
+                                            <p className="text-sm font-semibold text-green-800 dark:text-green-200">
+                                                Esta entrada é fixa todos os meses
+                                            </p>
 
-                                        <p className="mt-1 text-sm text-green-700 dark:text-green-300">
-                                            Deseja excluir somente o lançamento deste mês ou todos os meses desta entrada fixa?
-                                        </p>
-                                    </div>
+                                            <p className="mt-1 text-sm text-green-700 dark:text-green-300">
+                                                Você pode excluir somente este mês ou encerrar a entrada fixa deste mês em diante.
+                                            </p>
 
-                                    <div className="space-y-3">
-                                        <button
-                                            type="button"
-                                            onClick={() => confirmarExclusao('atual')}
-                                            className="w-full cursor-pointer rounded-xl border border-gray-300 bg-white px-4 py-3 text-left text-sm font-semibold text-gray-800 transition duration-200 hover:-translate-y-0.5 hover:border-blue-400 hover:bg-blue-50 hover:shadow-sm dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:border-blue-500 dark:hover:bg-gray-800"
-                                        >
-                                            Excluir somente este mês
+                                            <p className="mt-2 text-xs text-green-700 dark:text-green-300">
+                                                Os lançamentos dos meses anteriores continuarão preservados no histórico.
+                                            </p>
+                                        </div>
 
-                                            <span className="mt-1 block text-xs font-normal text-gray-500 dark:text-gray-400">
-                                                Remove apenas este lançamento mensal.
-                                            </span>
-                                        </button>
+                                        <div className="space-y-3">
+                                            <button
+                                                type="button"
+                                                onClick={() => confirmarExclusao('atual')}
+                                                className="w-full cursor-pointer rounded-xl border border-gray-300 bg-white px-4 py-3 text-left text-sm font-semibold text-gray-800 transition duration-200 hover:-translate-y-0.5 hover:border-green-400 hover:bg-green-50 hover:shadow-sm dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:border-green-500 dark:hover:bg-gray-800"
+                                            >
+                                                Excluir somente este mês
 
-                                        <button
-                                            type="button"
-                                            onClick={() => confirmarExclusao('todos_fixo')}
-                                            className="w-full cursor-pointer rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-left text-sm font-semibold text-red-700 transition duration-200 hover:-translate-y-0.5 hover:border-red-400 hover:bg-red-100 hover:shadow-sm dark:border-red-800 dark:bg-red-950 dark:text-red-300 dark:hover:border-red-700 dark:hover:bg-red-900"
-                                        >
-                                            Excluir todos os meses
+                                                <span className="mt-1 block text-xs font-normal text-gray-500 dark:text-gray-400">
+                                                    Remove somente este lançamento. A entrada continuará aparecendo nos próximos meses.
+                                                </span>
+                                            </button>
 
-                                            <span className="mt-1 block text-xs font-normal text-red-600 dark:text-red-400">
-                                                Remove todos os lançamentos desta entrada fixa mensal.
-                                            </span>
-                                        </button>
-                                    </div>
-                                </>
-                                ) : movimentacaoParaExcluir.parcela_fixa &&
-                                movimentacaoParaExcluir.despesa_fixa_id ? (
+                                            <button
+                                                type="button"
+                                                onClick={() =>
+                                                    confirmarExclusao('encerrar_fixa')
+                                                }
+                                                className="w-full cursor-pointer rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-left text-sm font-semibold text-red-700 transition duration-200 hover:-translate-y-0.5 hover:border-red-400 hover:bg-red-100 hover:shadow-sm dark:border-red-800 dark:bg-red-950 dark:text-red-300 dark:hover:border-red-700 dark:hover:bg-red-900"
+                                            >
+                                                Encerrar deste mês em diante
+
+                                                <span className="mt-1 block text-xs font-normal text-red-600 dark:text-red-400">
+                                                    Encerra a recorrência e remove este mês e os próximos lançamentos já gerados. Os meses anteriores serão mantidos.
+                                                </span>
+                                            </button>
+                                        </div>
+                                    </>
+                                ) : (
+                                    <>
+                                        <div className="mb-4 rounded-xl border border-yellow-200 bg-yellow-50 p-4 dark:border-yellow-800 dark:bg-yellow-950">
+                                            <p className="text-sm font-semibold text-yellow-800 dark:text-yellow-200">
+                                                Esta entrada utiliza o modelo mensal antigo
+                                            </p>
+
+                                            <p className="mt-1 text-sm text-yellow-700 dark:text-yellow-300">
+                                                Você pode excluir somente este lançamento ou todos os meses que foram cadastrados anteriormente.
+                                            </p>
+                                        </div>
+
+                                        <div className="space-y-3">
+                                            <button
+                                                type="button"
+                                                onClick={() => confirmarExclusao('atual')}
+                                                className="w-full cursor-pointer rounded-xl border border-gray-300 bg-white px-4 py-3 text-left text-sm font-semibold text-gray-800 transition duration-200 hover:-translate-y-0.5 hover:border-blue-400 hover:bg-blue-50 hover:shadow-sm dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:border-blue-500 dark:hover:bg-gray-800"
+                                            >
+                                                Excluir somente este mês
+
+                                                <span className="mt-1 block text-xs font-normal text-gray-500 dark:text-gray-400">
+                                                    Remove apenas este lançamento mensal.
+                                                </span>
+                                            </button>
+
+                                            <button
+                                                type="button"
+                                                onClick={() =>
+                                                    confirmarExclusao('todos_fixo')
+                                                }
+                                                className="w-full cursor-pointer rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-left text-sm font-semibold text-red-700 transition duration-200 hover:-translate-y-0.5 hover:border-red-400 hover:bg-red-100 hover:shadow-sm dark:border-red-800 dark:bg-red-950 dark:text-red-300 dark:hover:border-red-700 dark:hover:bg-red-900"
+                                            >
+                                                Excluir os meses cadastrados
+
+                                                <span className="mt-1 block text-xs font-normal text-red-600 dark:text-red-400">
+                                                    Remove os lançamentos pertencentes ao modelo antigo desta entrada mensal.
+                                                </span>
+                                            </button>
+                                        </div>
+                                    </>
+                                )
+                            ) : movimentacaoParaExcluir.parcela_fixa &&
+                            movimentacaoParaExcluir.despesa_fixa_id ? (
                                 <>
                                     <div className="mb-4 rounded-xl border border-blue-200 bg-blue-50 p-4 dark:border-blue-800 dark:bg-blue-950">
                                         <p className="text-sm font-semibold text-blue-800 dark:text-blue-200">
