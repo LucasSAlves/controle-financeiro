@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Str;
 
 class EntradaFixa extends Model
 {
@@ -12,6 +13,7 @@ class EntradaFixa extends Model
 
     protected $fillable = [
         'user_id',
+        'grupo_recorrencia',
         'descricao',
         'valor',
         'data_inicio',
@@ -29,6 +31,16 @@ class EntradaFixa extends Model
         'ativa' => 'boolean',
         'encerrada_em' => 'date',
     ];
+
+    protected static function booted(): void
+    {
+        static::creating(function (EntradaFixa $entradaFixa) {
+            if (!$entradaFixa->grupo_recorrencia) {
+                $entradaFixa->grupo_recorrencia =
+                    (string) Str::uuid();
+            }
+        });
+    }
 
     public function user(): BelongsTo
     {

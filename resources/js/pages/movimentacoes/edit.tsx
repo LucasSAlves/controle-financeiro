@@ -54,6 +54,7 @@ type FormData = {
     forma_pagamento: string;
     status: string;
     observacao: string;
+    total_parcelas: string;
     modo_edicao: 'atual' | 'todos_fixo' | 'futuros_fixa';
 };
 
@@ -107,6 +108,9 @@ export default function MovimentacoesEdit({
         forma_pagamento: movimentacao.forma_pagamento || '',
         status: movimentacao.status,
         observacao: movimentacao.observacao || '',
+        total_parcelas: movimentacao.total_parcelas
+            ? String(movimentacao.total_parcelas)
+            : '',
         modo_edicao: 'atual',
     });
 
@@ -196,6 +200,7 @@ export default function MovimentacoesEdit({
                             <select
                                 value={data.tipo}
                                 disabled={
+                                    movimentacao.parcelado ||
                                     movimentacao.fixo_mensal ||
                                     Boolean(
                                         movimentacao.parcela_fixa &&
@@ -296,6 +301,39 @@ export default function MovimentacoesEdit({
                                 </p>
                             )}
                         </div>
+
+                        {movimentacao.parcelado && (
+                            <div>
+                                <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                                    Quantidade de parcelas
+                                </label>
+
+                                <input
+                                    type="number"
+                                    min="2"
+                                    max="120"
+                                    value={data.total_parcelas}
+                                    onChange={(event) =>
+                                        setData('total_parcelas', event.target.value)
+                                    }
+                                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                                />
+
+                                {errors.total_parcelas && (
+                                    <p className="mt-1 text-sm text-red-600">
+                                        {errors.total_parcelas}
+                                    </p>
+                                )}
+
+                                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                    Esta compra está na parcela{' '}
+                                    {movimentacao.parcela_atual || 1} de{' '}
+                                    {movimentacao.total_parcelas || 0}. Você pode aumentar ou
+                                    reduzir a quantidade total.
+                                </p>
+                            </div>
+                        )}
+
                         {movimentacao.fixo_mensal && (
                         <div className="md:col-span-2 rounded-lg border border-green-200 bg-green-50 p-4 dark:border-green-800 dark:bg-green-950">
                             <p className="text-sm font-semibold text-green-800 dark:text-green-200">
@@ -527,7 +565,10 @@ export default function MovimentacoesEdit({
                                         {movimentacao.status === 'pago' && (
                                             <div className="mb-4 rounded-xl border border-green-200 bg-green-50 p-4 dark:border-green-800 dark:bg-green-950">
                                                 <p className="text-sm text-green-700 dark:text-green-300">
-                                                    Este lançamento já foi pago. Ao alterar os próximos meses, o lançamento pago será preservado como histórico.
+                                                    Este lançamento está marcado como pago. Se você mantiver
+                                                    o status Pago, este mês será preservado no histórico e as
+                                                    alterações começarão no próximo mês. Se mudar para A vencer,
+                                                    este mês também será atualizado.
                                                 </p>
                                             </div>
                                         )}
@@ -557,7 +598,9 @@ export default function MovimentacoesEdit({
                                                 Alterar este mês e os próximos
 
                                                 <span className="mt-1 block text-xs font-normal text-blue-600 dark:text-blue-400">
-                                                    Atualiza a regra mensal e todos os próximos lançamentos pendentes. Lançamentos pagos serão preservados.
+                                                    Atualiza a regra mensal e os próximos lançamentos pendentes.
+                                                    O mês selecionado respeitará o status escolhido acima.
+                                                    Outros lançamentos pagos serão preservados.
                                                 </span>
                                             </button>
                                         </div>
