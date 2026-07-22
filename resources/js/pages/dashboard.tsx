@@ -23,6 +23,10 @@ type Movimentacao = {
     parcelado: boolean;
     parcela_fixa: boolean;
     despesa_fixa_id: number | null;
+
+    fixo_mensal: boolean;
+    entrada_fixa_id: number | null;
+
     parcela_atual: number | null;
     total_parcelas: number | null;
 };
@@ -90,10 +94,21 @@ function identificarLancamento(
         parcelado: boolean;
         parcela_fixa: boolean;
         despesa_fixa_id: number | null;
+
+        fixo_mensal?: boolean;
+        entrada_fixa_id?: number | null;
+
         parcela_atual: number | null;
         total_parcelas: number | null;
     },
 ): string | null {
+    if (
+        movimentacao.fixo_mensal &&
+        movimentacao.entrada_fixa_id
+    ) {
+        return 'Entrada fixa';
+    }
+
     if (
         movimentacao.parcela_fixa &&
         movimentacao.despesa_fixa_id
@@ -111,7 +126,6 @@ function identificarLancamento(
 
     return null;
 }
-
 export default function Dashboard({
     preferenciasNotificacao,
     resumo = {
@@ -594,7 +608,14 @@ Props) {
                                                 </p>
 
                                                 {identificarLancamento(movimentacao) && (
-                                                    <p className="mt-1 text-xs font-medium text-blue-600 dark:text-blue-400">
+                                                    <p
+                                                        className={
+                                                            movimentacao.fixo_mensal &&
+                                                            movimentacao.entrada_fixa_id
+                                                                ? 'mt-1 text-xs font-medium text-green-600 dark:text-green-400'
+                                                                : 'mt-1 text-xs font-medium text-blue-600 dark:text-blue-400'
+                                                        }
+                                                    >
                                                         {identificarLancamento(movimentacao)}
                                                     </p>
                                                 )}

@@ -16,7 +16,6 @@ type FormData = {
     parcela_fixa: boolean;
     total_parcelas: string;
     fixo_mensal: boolean;
-    total_meses: string;
 };
 
 type Categoria = {
@@ -92,7 +91,6 @@ export default function MovimentacoesCreate({
         parcela_fixa: false,
         total_parcelas: '',
         fixo_mensal: false,
-        total_meses: '',
     });
 
     const categoriasDisponiveis = categorias.filter(
@@ -165,7 +163,6 @@ export default function MovimentacoesCreate({
                                         parcela_fixa: false,
                                         total_parcelas: '',
                                         fixo_mensal: false,
-                                        total_meses: '',
                                         forma_pagamento: '',
                                     });
                                 }}
@@ -229,7 +226,7 @@ export default function MovimentacoesCreate({
                             <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
                                 {data.parcelado
                                     ? 'Valor da parcela'
-                                    : data.parcela_fixa
+                                    : data.parcela_fixa || data.fixo_mensal
                                         ? 'Valor mensal'
                                         : 'Valor'}
                             </label>
@@ -263,6 +260,12 @@ export default function MovimentacoesCreate({
                             {data.parcela_fixa && (
                                 <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                                     Informe o valor mensal desta despesa fixa.
+                                </p>
+                            )}
+
+                            {data.fixo_mensal && (
+                                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                    Informe o valor mensal desta entrada fixa.
                                 </p>
                             )}
                         </div>
@@ -312,46 +315,31 @@ export default function MovimentacoesCreate({
                                         type="checkbox"
                                         checked={data.fixo_mensal}
                                         onChange={(event) =>
-                                            setData({
-                                                ...data,
-                                                fixo_mensal: event.target.checked,
-                                                total_meses: event.target.checked
-                                                    ? data.total_meses
-                                                    : '',
-                                            })
+                                            setData('fixo_mensal', event.target.checked)
                                         }
                                     />
 
                                     Recebo este valor todos os meses
                                 </label>
 
+                                {errors.fixo_mensal && (
+                                    <p className="mt-2 text-sm text-red-600">
+                                        {errors.fixo_mensal}
+                                    </p>
+                                )}
+
                                 {data.fixo_mensal && (
-                                    <div className="mt-4">
-                                        <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                                            Quantidade de meses
-                                        </label>
+                                    <div className="mt-4 rounded-lg border border-green-200 bg-white p-4 dark:border-green-800 dark:bg-gray-900">
+                                        <p className="text-sm font-medium text-green-900 dark:text-green-100">
+                                            Esta entrada será lançada automaticamente todos os meses.
+                                        </p>
 
-                                        <input
-                                            type="number"
-                                            min="2"
-                                            max="120"
-                                            value={data.total_meses}
-                                            onChange={(event) =>
-                                                setData('total_meses', event.target.value)
-                                            }
-                                            placeholder="Ex: 12"
-                                            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-950 dark:text-white"
-                                        />
+                                        <p className="mt-1 text-xs text-green-700 dark:text-green-300">
+                                            Não existe quantidade de meses. A entrada continuará ativa até ser encerrada.
+                                        </p>
 
-                                        {errors.total_meses && (
-                                            <p className="mt-1 text-sm text-red-600">
-                                                {errors.total_meses}
-                                            </p>
-                                        )}
-
-                                        <p className="mt-1 text-xs text-gray-600 dark:text-gray-400">
-                                            A data informada acima será a data do primeiro recebimento.
-                                            Os próximos serão criados mês a mês com o mesmo valor.
+                                        <p className="mt-2 text-xs text-gray-600 dark:text-gray-400">
+                                            A data informada acima será usada como dia mensal de recebimento.
                                         </p>
                                     </div>
                                 )}

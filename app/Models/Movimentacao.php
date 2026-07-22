@@ -21,16 +21,22 @@ class Movimentacao extends Model
         'forma_pagamento',
         'status',
         'observacao',
+
         'parcelado',
         'parcela_fixa',
         'fixo_mensal',
+
         'mes_atual',
         'total_meses',
+
         'parcela_atual',
         'total_parcelas',
+
         'grupo_parcelamento',
         'grupo_fixo_mensal',
+
         'despesa_fixa_id',
+        'entrada_fixa_id',
     ];
 
     protected $casts = [
@@ -38,11 +44,14 @@ class Movimentacao extends Model
         'data' => 'date',
         'data_pagamento' => 'date',
         'aviso_vencimento_enviado_em' => 'date',
+
         'parcelado' => 'boolean',
         'parcela_fixa' => 'boolean',
         'fixo_mensal' => 'boolean',
+
         'mes_atual' => 'integer',
         'total_meses' => 'integer',
+
         'parcela_atual' => 'integer',
         'total_parcelas' => 'integer',
     ];
@@ -55,5 +64,10 @@ class Movimentacao extends Model
     public function despesaFixa(): BelongsTo
     {
         return $this->belongsTo(DespesaFixa::class);
+    }
+
+    public function entradaFixa(): BelongsTo
+    {
+        return $this->belongsTo(EntradaFixa::class);
     }
 }
