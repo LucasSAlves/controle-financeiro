@@ -185,9 +185,11 @@ class MovimentacaoController extends Controller
             'data.required' => 'Informe a data.',
             'data.date' => 'Informe uma data válida.',
 
+            'categoria.required' => 'Selecione uma categoria para a despesa.',
             'categoria.string' => 'A categoria deve ser um texto.',
             'categoria.max' => 'A categoria não pode ter mais que 255 caracteres.',
 
+            'forma_pagamento.required' => 'Selecione uma forma de pagamento para a despesa.',
             'forma_pagamento.string' => 'A forma de pagamento deve ser um texto.',
             'forma_pagamento.max' => 'A forma de pagamento não pode ter mais que 255 caracteres.',
 
@@ -539,9 +541,11 @@ class MovimentacaoController extends Controller
         'data.required' => 'Informe a data.',
         'data.date' => 'Informe uma data válida.',
 
+        'categoria.required' => 'Selecione uma categoria para a despesa.',
         'categoria.string' => 'A categoria deve ser um texto.',
         'categoria.max' => 'A categoria não pode ter mais que 255 caracteres.',
 
+        'forma_pagamento.required' => 'Selecione uma forma de pagamento para a despesa.',
         'forma_pagamento.string' => 'A forma de pagamento deve ser um texto.',
         'forma_pagamento.max' => 'A forma de pagamento não pode ter mais que 255 caracteres.',
 
@@ -563,8 +567,13 @@ class MovimentacaoController extends Controller
         'descricao' => ['required', 'string', 'max:255'],
         'valor' => ['required', 'numeric', 'min:0.01'],
         'data' => ['required', 'date'],
-        'categoria' => ['nullable', 'string', 'max:255'],
-        'forma_pagamento' => ['nullable', 'string', 'max:255'],
+        'categoria' => $request->input('tipo') === 'despesa'
+            ? ['required', 'string', 'max:255']
+            : ['nullable', 'string', 'max:255'],
+
+        'forma_pagamento' => $request->input('tipo') === 'despesa'
+            ? ['required', 'string', 'max:255']
+            : ['nullable', 'string', 'max:255'],
         'status' => ['required', 'in:pago,pendente,recebido'],
         'observacao' => ['nullable', 'string'],
         'total_parcelas' => ['nullable', 'integer', 'min:2', 'max:120'],
