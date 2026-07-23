@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Str;
 
 class DespesaFixa extends Model
 {
@@ -12,6 +13,7 @@ class DespesaFixa extends Model
 
     protected $fillable = [
         'user_id',
+        'grupo_recorrencia',
         'descricao',
         'valor',
         'data_inicio',
@@ -30,6 +32,16 @@ class DespesaFixa extends Model
         'ativa' => 'boolean',
         'encerrada_em' => 'date',
     ];
+
+    protected static function booted(): void
+    {
+        static::creating(function (DespesaFixa $despesaFixa) {
+            if (!$despesaFixa->grupo_recorrencia) {
+                $despesaFixa->grupo_recorrencia =
+                    (string) Str::uuid();
+            }
+        });
+    }
 
     public function user(): BelongsTo
     {

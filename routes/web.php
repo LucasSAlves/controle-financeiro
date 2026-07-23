@@ -16,6 +16,12 @@ Route::middleware(['auth'])->group(function () {
     Route::get('dashboard', [DashboardController::class, 'index'])
         ->name('dashboard');
 
+    Route::get('/testes', function () {
+        abort_unless(app()->environment('local'), 404);
+
+        return Inertia::render('testes/index');
+    })->name('testes.index');
+
     Route::patch('movimentacoes/{movimentacao}/marcar-como-pago', [MovimentacaoController::class, 'marcarComoPago'])
         ->name('movimentacoes.marcar-como-pago');
 

@@ -67,6 +67,15 @@ function formatarData(data: string) {
     return new Date(`${data}T00:00:00`).toLocaleDateString('pt-BR');
 }
 
+function obterMesLocalAtual(): string {
+    const hoje = new Date();
+
+    const ano = hoje.getFullYear();
+    const mes = String(hoje.getMonth() + 1).padStart(2, '0');
+
+    return `${ano}-${mes}`;
+}
+
 function textoStatus(status: Movimentacao['status']) {
     if (status === 'pago') {
         return 'Pago';
@@ -100,7 +109,7 @@ export default function MovimentacoesIndex({
         pendentes: 0,
     },
     filtros = {
-        mes: new Date().toISOString().slice(0, 7),
+        mes: obterMesLocalAtual(),
         tipo: 'todos',
         status: 'todos',
     },
@@ -417,22 +426,22 @@ export default function MovimentacoesIndex({
                                                     movimentacao.parcela_atual &&
                                                     movimentacao.total_parcelas && (
                                                         <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                                                            Parcela{' '}
-                                                            {
-                                                                movimentacao.parcela_atual
-                                                            }
-                                                            /
-                                                            {
-                                                                movimentacao.total_parcelas
-                                                            }
+                                                            Parcela {movimentacao.parcela_atual}/
+                                                            {movimentacao.total_parcelas}
                                                         </p>
                                                     )}
 
-                                                    {movimentacao.fixo_mensal && (
-                                                        <p className="mt-1 text-xs font-medium text-green-600 dark:text-green-400">
-                                                            Entrada fixa
-                                                        </p>
-                                                    )}
+                                                {movimentacao.parcela_fixa && (
+                                                    <p className="mt-1 text-xs font-medium text-blue-600 dark:text-blue-400">
+                                                        Despesa fixa
+                                                    </p>
+                                                )}
+
+                                                {movimentacao.fixo_mensal && (
+                                                    <p className="mt-1 text-xs font-medium text-green-600 dark:text-green-400">
+                                                        Entrada fixa
+                                                    </p>
+                                                )}
                                             </td>
 
                                             <td className="px-5 py-4 text-gray-700 dark:text-gray-300">

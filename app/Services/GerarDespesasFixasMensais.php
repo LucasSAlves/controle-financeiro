@@ -20,17 +20,21 @@ class GerarDespesasFixasMensais
         $inicioDoMes = $competencia->copy()->startOfMonth();
         $fimDoMes = $competencia->copy()->endOfMonth();
 
+        /*
+        |--------------------------------------------------------------------------
+        | REGRAS VÁLIDAS PARA A COMPETÊNCIA
+        |--------------------------------------------------------------------------
+        | A regra pode estar inativa atualmente e ainda assim pertencer
+        | corretamente a um mês anterior à sua data de encerramento.
+        */
         $query = DespesaFixa::query()
             ->whereDate('data_inicio', '<=', $fimDoMes)
             ->where(function ($query) use ($inicioDoMes) {
-                /*
-                * Uma despesa encerrada ainda pertence aos meses anteriores
-                * à data de encerramento.
-                */
                 $query
                     ->whereNull('encerrada_em')
                     ->orWhereDate('encerrada_em', '>', $inicioDoMes);
             });
+
         if ($userId !== null) {
             $query->where('user_id', $userId);
         }
@@ -46,32 +50,117 @@ class GerarDespesasFixasMensais
             ) {
                 foreach ($despesasFixas as $despesaFixa) {
                     /*
-                    * Não gera a despesa quando o usuário excluiu
-                    * somente o lançamento deste mês.
+                    |--------------------------------------------------------------------------
+                    | TODAS AS VERSÕES DA MESMA RECORRÊNCIA
+                    |--------------------------------------------------------------------------
+                    | Uma despesa fixa pode possuir várias regras porque o usuário
+                    | alterou "este mês e os próximos".
                     */
-                    $competencia = $inicioDoMes
+                    $queryRegrasDoGrupo = DespesaFixa::where(
+                        'user_id',
+                        $despesaFixa->user_id
+                    );
+
+                    if ($despesaFixa->grupo_recorrencia) {
+                        $queryRegrasDoGrupo->where(
+                            'grupo_recorrencia',
+                            $despesaFixa->grupo_recorrencia
+                        );
+                    } else {
+                        /*
+                         * Proteção para alguma regra antiga que ainda esteja
+                         * sem grupo de recorrência.
+                         */
+                        $queryRegrasDoGrupo->where(
+                            'id',
+                            $despesaFixa->id
+                        );
+                    }
+
+                    $idsRegrasDoGrupo = $queryRegrasDoGrupo
+                        ->pluck('id');
+
+                    /*
+                    |--------------------------------------------------------------------------
+                    | ESCOLHER SOMENTE UMA REGRA PARA O MÊS
+                    |--------------------------------------------------------------------------
+                    | Caso duas versões estejam válidas por erro ou sobreposição,
+                    | usa a versão mais recente e ignora as anteriores.
+                    */
+                    $regraValidaMaisRecente = DespesaFixa::whereIn(
+                        'id',
+                        $idsRegrasDoGrupo
+                    )
+                        ->whereDate(
+                            'data_inicio',
+                            '<=',
+                            $fimDoMes
+                        )
+                        ->where(function ($query) use ($inicioDoMes) {
+                            $query
+                                ->whereNull('encerrada_em')
+                                ->orWhereDate(
+                                    'encerrada_em',
+                                    '>',
+                                    $inicioDoMes
+                                );
+                        })
+                        ->orderByDesc('data_inicio')
+                        ->orderByDesc('id')
+                        ->first();
+
+                    /*
+                     * Somente a regra mais recente da recorrência
+                     * pode gerar o lançamento deste mês.
+                     */
+                    if (
+                        !$regraValidaMaisRecente ||
+                        $regraValidaMaisRecente->id !== $despesaFixa->id
+                    ) {
+                        continue;
+                    }
+
+                    $competenciaFormatada = $inicioDoMes
                         ->copy()
                         ->startOfMonth()
                         ->format('Y-m-d');
 
-                    $mesFoiIgnorado = DespesaFixaExcecao::where(
+                    /*
+                    |--------------------------------------------------------------------------
+                    | EXCEÇÕES DA RECORRÊNCIA
+                    |--------------------------------------------------------------------------
+                    | A exclusão de um mês deve valer para todas as versões
+                    | da mesma recorrência.
+                    */
+                    $mesFoiIgnorado = DespesaFixaExcecao::whereIn(
                         'despesa_fixa_id',
-                        $despesaFixa->id
+                        $idsRegrasDoGrupo
                     )
-                        ->whereDate('competencia', $competencia)
+                        ->whereDate(
+                            'competencia',
+                            $competenciaFormatada
+                        )
                         ->exists();
 
                     if ($mesFoiIgnorado) {
                         continue;
                     }
+
                     /*
-                     * Evita criar novamente uma movimentação fixa
-                     * que já existe naquele mês.
-                     */
+                    |--------------------------------------------------------------------------
+                    | MOVIMENTAÇÃO JÁ EXISTENTE NO GRUPO
+                    |--------------------------------------------------------------------------
+                    | Verifica todas as versões, e não somente o ID da regra atual.
+                    | Assim, uma nova versão não duplica um lançamento já existente.
+                    */
                     $jaExisteNoMes = Movimentacao::where(
-                        'despesa_fixa_id',
-                        $despesaFixa->id
+                        'user_id',
+                        $despesaFixa->user_id
                     )
+                        ->whereIn(
+                            'despesa_fixa_id',
+                            $idsRegrasDoGrupo
+                        )
                         ->whereBetween('data', [
                             $inicioDoMes,
                             $fimDoMes,
@@ -84,7 +173,7 @@ class GerarDespesasFixasMensais
 
                     /*
                      * Contas com vencimento nos dias 29, 30 ou 31
-                     * serão ajustadas para o último dia de meses menores.
+                     * são ajustadas para o último dia de meses menores.
                      */
                     $diaVencimento = min(
                         $despesaFixa->dia_vencimento,
@@ -106,7 +195,8 @@ class GerarDespesasFixasMensais
                             'descricao' => $despesaFixa->descricao,
                             'valor' => $despesaFixa->valor,
                             'categoria' => $despesaFixa->categoria,
-                            'forma_pagamento' => $despesaFixa->forma_pagamento,
+                            'forma_pagamento' =>
+                                $despesaFixa->forma_pagamento,
                             'status' => 'pendente',
                             'observacao' => $despesaFixa->observacao,
 

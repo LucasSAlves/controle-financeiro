@@ -70,6 +70,16 @@ function converterValorParaBanco(valor: string): string {
     return (Number(somenteNumeros) / 100).toFixed(2);
 }
 
+function obterDataLocalHoje(): string {
+    const hoje = new Date();
+
+    const ano = hoje.getFullYear();
+    const mes = String(hoje.getMonth() + 1).padStart(2, '0');
+    const dia = String(hoje.getDate()).padStart(2, '0');
+
+    return `${ano}-${mes}-${dia}`;
+}
+
 export default function MovimentacoesCreate({
     categorias = [],
     formasPagamento = [],
@@ -78,11 +88,13 @@ export default function MovimentacoesCreate({
 
     const tipoInicial = params.get('tipo') === 'despesa' ? 'despesa' : 'entrada';
 
+    const dataHoje = obterDataLocalHoje();
+
     const { data, setData, post, processing, errors } = useForm<FormData>({
         tipo: tipoInicial,
         descricao: '',
         valor: '',
-        data: new Date().toISOString().slice(0, 10),
+        data: dataHoje,
         categoria: '',
         forma_pagamento: '',
         status: tipoInicial === 'despesa' ? 'pendente' : 'recebido',
@@ -96,12 +108,6 @@ export default function MovimentacoesCreate({
     const categoriasDisponiveis = categorias.filter(
         (categoria) => categoria.tipo === data.tipo
     );
-
-    const hoje = new Date();
-    const ano = hoje.getFullYear();
-    const mes = String(hoje.getMonth() + 1).padStart(2, '0');
-    const dia = String(hoje.getDate()).padStart(2, '0');
-    const dataHoje = `${ano}-${mes}-${dia}`;
 
     const statusPendenteDespesa =
         data.data < dataHoje ? 'Vencido' : 'A vencer';
@@ -469,6 +475,7 @@ export default function MovimentacoesCreate({
                             </label>
 
                             <select
+                                required={data.tipo === 'despesa'}
                                 value={data.categoria}
                                 onChange={(event) =>
                                     setData('categoria', event.target.value)
@@ -507,6 +514,7 @@ export default function MovimentacoesCreate({
                                 </label>
 
                                 <select
+                                    required
                                     value={data.forma_pagamento}
                                     onChange={(event) =>
                                         setData(

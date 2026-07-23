@@ -185,9 +185,11 @@ class MovimentacaoController extends Controller
             'data.required' => 'Informe a data.',
             'data.date' => 'Informe uma data válida.',
 
+            'categoria.required' => 'Selecione uma categoria para a despesa.',
             'categoria.string' => 'A categoria deve ser um texto.',
             'categoria.max' => 'A categoria não pode ter mais que 255 caracteres.',
 
+            'forma_pagamento.required' => 'Selecione uma forma de pagamento para a despesa.',
             'forma_pagamento.string' => 'A forma de pagamento deve ser um texto.',
             'forma_pagamento.max' => 'A forma de pagamento não pode ter mais que 255 caracteres.',
 
@@ -539,9 +541,11 @@ class MovimentacaoController extends Controller
         'data.required' => 'Informe a data.',
         'data.date' => 'Informe uma data válida.',
 
+        'categoria.required' => 'Selecione uma categoria para a despesa.',
         'categoria.string' => 'A categoria deve ser um texto.',
         'categoria.max' => 'A categoria não pode ter mais que 255 caracteres.',
 
+        'forma_pagamento.required' => 'Selecione uma forma de pagamento para a despesa.',
         'forma_pagamento.string' => 'A forma de pagamento deve ser um texto.',
         'forma_pagamento.max' => 'A forma de pagamento não pode ter mais que 255 caracteres.',
 
@@ -549,6 +553,11 @@ class MovimentacaoController extends Controller
         'status.in' => 'Informe um status válido.',
 
         'observacao.string' => 'A observação deve ser um texto.',
+
+        'total_parcelas.required' => 'Informe a quantidade de parcelas.',
+        'total_parcelas.integer' => 'A quantidade de parcelas deve ser um número inteiro.',
+        'total_parcelas.min' => 'A quantidade de parcelas deve ser no mínimo 2.',
+        'total_parcelas.max' => 'A quantidade de parcelas não pode ser maior que 120.',
 
         'modo_edicao.in' => 'Informe uma opção válida para edição.',
     ];
@@ -558,15 +567,313 @@ class MovimentacaoController extends Controller
         'descricao' => ['required', 'string', 'max:255'],
         'valor' => ['required', 'numeric', 'min:0.01'],
         'data' => ['required', 'date'],
-        'categoria' => ['nullable', 'string', 'max:255'],
-        'forma_pagamento' => ['nullable', 'string', 'max:255'],
+        'categoria' => $request->input('tipo') === 'despesa'
+            ? ['required', 'string', 'max:255']
+            : ['nullable', 'string', 'max:255'],
+
+        'forma_pagamento' => $request->input('tipo') === 'despesa'
+            ? ['required', 'string', 'max:255']
+            : ['nullable', 'string', 'max:255'],
         'status' => ['required', 'in:pago,pendente,recebido'],
         'observacao' => ['nullable', 'string'],
-        'modo_edicao' => ['nullable', 'in:atual,todos_fixo,futuros_fixa',
-    ],
-    ], $mensagens);
+        'total_parcelas' => ['nullable', 'integer', 'min:2', 'max:120'],
+        'modo_edicao' => ['nullable', 'in:atual,todos_fixo,futuros_fixa'],
+            ], $mensagens);
 
     $modoEdicao = $request->input('modo_edicao', 'atual');
+
+    /*
+    |--------------------------------------------------------------------------
+    | EDIÇÃO DE DESPESA PARCELADA
+    |--------------------------------------------------------------------------
+    | Permite aumentar ou reduzir a quantidade total de parcelas.
+    | Parcelas pagas nunca são removidas.
+    */
+    if ($movimentacao->parcelado) {
+        if ($dados['tipo'] !== 'despesa') {
+            return back()
+                ->withErrors([
+                    'tipo' => 'Uma despesa parcelada não pode ser transformada em entrada.',
+                ])
+                ->withInput();
+        }
+
+        if (!$movimentacao->grupo_parcelamento) {
+            return back()
+                ->withErrors([
+                    'total_parcelas' => 'O grupo deste parcelamento não foi encontrado.',
+                ])
+                ->withInput();
+        }
+
+        if (empty($dados['total_parcelas'])) {
+            return back()
+                ->withErrors([
+                    'total_parcelas' => 'Informe a quantidade de parcelas.',
+                ])
+                ->withInput();
+        }
+
+        $novoTotalParcelas = (int) $dados['total_parcelas'];
+
+        $parcelasDoGrupo = Movimentacao::where(
+            'user_id',
+            Auth::id()
+        )
+            ->where(
+                'grupo_parcelamento',
+                $movimentacao->grupo_parcelamento
+            )
+            ->orderBy('parcela_atual')
+            ->get();
+
+        if ($parcelasDoGrupo->isEmpty()) {
+            return back()
+                ->withErrors([
+                    'total_parcelas' => 'Nenhuma parcela deste grupo foi encontrada.',
+                ])
+                ->withInput();
+        }
+
+        $totalParcelasAtual = (int) (
+            $parcelasDoGrupo->max('total_parcelas')
+            ?: $movimentacao->total_parcelas
+            ?: $parcelasDoGrupo->max('parcela_atual')
+        );
+
+        /*
+        * Ao reduzir, verifica primeiro se alguma das parcelas
+        * que seriam removidas já está paga.
+        */
+        $parcelasPagasExcedentes = $parcelasDoGrupo
+            ->filter(function ($item) use ($novoTotalParcelas) {
+                return (
+                    (int) $item->parcela_atual > $novoTotalParcelas
+                    && (
+                        $item->status === 'pago'
+                        || $item->data_pagamento
+                    )
+                );
+            });
+
+        if ($parcelasPagasExcedentes->isNotEmpty()) {
+            $numerosParcelas = $parcelasPagasExcedentes
+                ->pluck('parcela_atual')
+                ->implode(', ');
+
+            return back()
+                ->withErrors([
+                    'total_parcelas' =>
+                        "Não é possível reduzir para {$novoTotalParcelas} parcelas, pois a(s) parcela(s) {$numerosParcelas} já está(ão) paga(s).",
+                ])
+                ->withInput();
+        }
+
+        /*
+        * Remove o sufixo antigo, caso a descrição já possua
+        * algo como "- Parcela 2/4".
+        */
+        $descricaoBase = trim(
+            (string) preg_replace(
+                '/\s*-\s*Parcela\s+\d+\/\d+\s*$/i',
+                '',
+                $dados['descricao']
+            )
+        );
+
+        $numeroParcelaSelecionada = (int) (
+            $movimentacao->parcela_atual ?? 1
+        );
+
+        $parcelaSelecionadaSeraRemovida =
+            $numeroParcelaSelecionada > $novoTotalParcelas;
+
+        DB::transaction(function () use (
+            $dados,
+            $movimentacao,
+            $descricaoBase,
+            $novoTotalParcelas,
+            $totalParcelasAtual,
+            $numeroParcelaSelecionada,
+            $parcelaSelecionadaSeraRemovida
+        ) {
+            /*
+            * Redução do parcelamento:
+            * remove apenas parcelas excedentes ainda pendentes.
+            */
+            if ($novoTotalParcelas < $totalParcelasAtual) {
+                Movimentacao::where(
+                    'user_id',
+                    Auth::id()
+                )
+                    ->where(
+                        'grupo_parcelamento',
+                        $movimentacao->grupo_parcelamento
+                    )
+                    ->where(
+                        'parcela_atual',
+                        '>',
+                        $novoTotalParcelas
+                    )
+                    ->where('status', 'pendente')
+                    ->whereNull('data_pagamento')
+                    ->delete();
+            }
+
+            /*
+            * Atualiza somente os dados da parcela que o usuário
+            * abriu na tela. As demais mantêm valor, data e status.
+            */
+            if (!$parcelaSelecionadaSeraRemovida) {
+                $movimentacao->refresh();
+
+                $status = $dados['status'] === 'pago'
+                    ? 'pago'
+                    : 'pendente';
+
+                $movimentacao->update([
+                    'tipo' => 'despesa',
+                    'descricao' => $descricaoBase
+                        . ' - Parcela '
+                        . $numeroParcelaSelecionada
+                        . '/'
+                        . $novoTotalParcelas,
+                    'valor' => $dados['valor'],
+                    'data' => $dados['data'],
+                    'categoria' => $dados['categoria'] ?? null,
+                    'forma_pagamento' =>
+                        $dados['forma_pagamento'] ?? null,
+                    'status' => $status,
+                    'observacao' => $dados['observacao'] ?? null,
+                    'total_parcelas' => $novoTotalParcelas,
+                    'data_pagamento' => $status === 'pago'
+                        ? (
+                            $movimentacao->data_pagamento
+                                ? $movimentacao->data_pagamento
+                                    ->format('Y-m-d')
+                                : now()->toDateString()
+                        )
+                        : null,
+                ]);
+            }
+
+            /*
+            * Aumento do parcelamento:
+            * cria somente as novas parcelas no final do grupo.
+            */
+            if ($novoTotalParcelas > $totalParcelasAtual) {
+                $ultimaParcelaExistente = Movimentacao::where(
+                    'user_id',
+                    Auth::id()
+                )
+                    ->where(
+                        'grupo_parcelamento',
+                        $movimentacao->grupo_parcelamento
+                    )
+                    ->orderByDesc('parcela_atual')
+                    ->first();
+
+                if (!$ultimaParcelaExistente) {
+                    throw new \RuntimeException(
+                        'Não foi possível encontrar a última parcela.'
+                    );
+                }
+
+                for (
+                    $parcela = $totalParcelasAtual + 1;
+                    $parcela <= $novoTotalParcelas;
+                    $parcela++
+                ) {
+                    $diferencaParcelas =
+                        $parcela
+                        - (int) $ultimaParcelaExistente->parcela_atual;
+
+                    $dataNovaParcela = $ultimaParcelaExistente->data
+                        ->copy()
+                        ->addMonthsNoOverflow($diferencaParcelas);
+
+                    Movimentacao::firstOrCreate(
+                        [
+                            'user_id' => Auth::id(),
+                            'grupo_parcelamento' =>
+                                $movimentacao->grupo_parcelamento,
+                            'parcela_atual' => $parcela,
+                        ],
+                        [
+                            'tipo' => 'despesa',
+                            'descricao' => $descricaoBase
+                                . ' - Parcela '
+                                . $parcela
+                                . '/'
+                                . $novoTotalParcelas,
+                            'valor' => $dados['valor'],
+                            'data' => $dataNovaParcela->format('Y-m-d'),
+                            'categoria' => $dados['categoria'] ?? null,
+                            'forma_pagamento' =>
+                                $dados['forma_pagamento'] ?? null,
+                            'status' => 'pendente',
+                            'observacao' =>
+                                $dados['observacao'] ?? null,
+
+                            'parcelado' => true,
+                            'parcela_fixa' => false,
+                            'fixo_mensal' => false,
+
+                            'mes_atual' => null,
+                            'total_meses' => null,
+
+                            'total_parcelas' => $novoTotalParcelas,
+
+                            'grupo_fixo_mensal' => null,
+                            'despesa_fixa_id' => null,
+                            'entrada_fixa_id' => null,
+
+                            'data_pagamento' => null,
+                            'aviso_vencimento_enviado_em' => null,
+                        ]
+                    );
+                }
+            }
+
+            /*
+            * Atualiza a identificação de todas as parcelas restantes:
+            * Parcela 1/3, Parcela 2/3, Parcela 3/3...
+            *
+            * Parcelas pagas mantêm valor, data e status.
+            */
+            $parcelasAtualizadas = Movimentacao::where(
+                'user_id',
+                Auth::id()
+            )
+                ->where(
+                    'grupo_parcelamento',
+                    $movimentacao->grupo_parcelamento
+                )
+                ->orderBy('parcela_atual')
+                ->get();
+
+            foreach ($parcelasAtualizadas as $item) {
+                $numeroParcela = (int) $item->parcela_atual;
+
+                $item->update([
+                    'descricao' => $descricaoBase
+                        . ' - Parcela '
+                        . $numeroParcela
+                        . '/'
+                        . $novoTotalParcelas,
+                    'total_parcelas' => $novoTotalParcelas,
+                ]);
+            }
+        });
+
+        $mensagem = $novoTotalParcelas === $totalParcelasAtual
+            ? 'Parcela atualizada com sucesso.'
+            : "Parcelamento atualizado de {$totalParcelasAtual} para {$novoTotalParcelas} parcelas.";
+
+        return redirect()
+            ->route('movimentacoes.index')
+            ->with('success', $mensagem);
+    }
 
     /*
     |--------------------------------------------------------------------------
@@ -660,22 +967,55 @@ class MovimentacaoController extends Controller
                 ]);
             }
 
+            $grupoRecorrencia = $despesaFixaAtual->grupo_recorrencia;
+
+            if (!$grupoRecorrencia) {
+                return back()
+                    ->withErrors([
+                        'edicao' => 'O grupo desta despesa fixa não foi encontrado.',
+                    ])
+                    ->withInput();
+            }
+
             DB::transaction(function () use (
                 $dados,
                 $movimentacao,
                 $despesaFixaAtual,
                 $dataInformada,
-                $competenciaAtual
+                $competenciaAtual,
+                $grupoRecorrencia
             ) {
-                $movimentacaoPaga =
+                $idsRegrasDoGrupo = DespesaFixa::where(
+                    'user_id',
+                    Auth::id()
+                )
+                    ->where(
+                        'grupo_recorrencia',
+                        $grupoRecorrencia
+                    )
+                    ->pluck('id');
+
+
+                $statusSolicitado = $dados['status'] === 'pago'
+                    ? 'pago'
+                    : 'pendente';
+
+                $movimentacaoEstavaPaga =
                     $movimentacao->status === 'pago' ||
                     $movimentacao->data_pagamento;
 
                 /*
-                * Se o mês atual já estiver pago, ele será preservado.
-                * A nova regra começará no mês seguinte.
+                * O lançamento pago será preservado somente quando
+                * o usuário mantiver o status como Pago.
+                *
+                * Se ele mudar para A vencer, o mês selecionado
+                * também será atualizado.
                 */
-                $competenciaNovaRegra = $movimentacaoPaga
+                $preservarMesPago =
+                    $movimentacaoEstavaPaga &&
+                    $statusSolicitado === 'pago';
+
+                $competenciaNovaRegra = $preservarMesPago
                     ? $competenciaAtual->copy()->addMonth()
                     : $competenciaAtual->copy();
 
@@ -691,19 +1031,32 @@ class MovimentacaoController extends Controller
                     );
 
                 /*
-                * A regra antiga continuará válida somente
-                * nos meses anteriores.
+                * Encerra todas as regras que ainda estejam ativas
+                * dentro da mesma recorrência.
+                *
+                * Isso impede que uma versão criada em uma edição
+                * anterior continue gerando lançamentos duplicados.
                 */
-                $despesaFixaAtual->update([
-                    'ativa' => false,
-                    'encerrada_em' => $competenciaNovaRegra
-                        ->copy()
-                        ->startOfMonth()
-                        ->format('Y-m-d'),
-                ]);
+                DespesaFixa::where(
+                    'user_id',
+                    Auth::id()
+                )
+                    ->where(
+                        'grupo_recorrencia',
+                        $grupoRecorrencia
+                    )
+                    ->where('ativa', true)
+                    ->update([
+                        'ativa' => false,
+                        'encerrada_em' => $competenciaNovaRegra
+                            ->copy()
+                            ->startOfMonth()
+                            ->format('Y-m-d'),
+                    ]);
 
                 $novaDespesaFixa = DespesaFixa::create([
                     'user_id' => Auth::id(),
+                    'grupo_recorrencia' => $despesaFixaAtual->grupo_recorrencia,
                     'descricao' => $dados['descricao'],
                     'valor' => $dados['valor'],
                     'data_inicio' => $dataInicioNovaRegra->format('Y-m-d'),
@@ -716,21 +1069,51 @@ class MovimentacaoController extends Controller
                 ]);
 
                 /*
-                * Transfere para a nova regra os meses que o usuário
-                * já havia escolhido ignorar.
+                * Reúne os meses ignorados de todas as versões
+                * desta mesma recorrência.
                 */
-                DespesaFixaExcecao::where(
+                $competenciasIgnoradas = DespesaFixaExcecao::whereIn(
                     'despesa_fixa_id',
-                    $despesaFixaAtual->id
+                    $idsRegrasDoGrupo
                 )
                     ->whereDate(
                         'competencia',
                         '>=',
                         $competenciaNovaRegra->format('Y-m-d')
                     )
-                    ->update([
+                    ->pluck('competencia')
+                    ->map(function ($competencia) {
+                        return \Carbon\Carbon::parse($competencia)
+                            ->startOfMonth()
+                            ->format('Y-m-d');
+                    })
+                    ->unique();
+
+                /*
+                * Registra as exceções na nova regra sem criar
+                * competências duplicadas.
+                */
+                foreach ($competenciasIgnoradas as $competenciaIgnorada) {
+                    DespesaFixaExcecao::firstOrCreate([
                         'despesa_fixa_id' => $novaDespesaFixa->id,
+                        'competencia' => $competenciaIgnorada,
                     ]);
+                }
+
+                /*
+                * Remove as exceções antigas que já foram transferidas.
+                */
+                DespesaFixaExcecao::whereIn(
+                    'despesa_fixa_id',
+                    $idsRegrasDoGrupo
+                )
+                    ->whereDate(
+                        'competencia',
+                        '>=',
+                        $competenciaNovaRegra->format('Y-m-d')
+                    )
+                    ->delete();
+
 
                 /*
                 * Atualiza somente os lançamentos pendentes deste mês
@@ -740,9 +1123,9 @@ class MovimentacaoController extends Controller
                     'user_id',
                     Auth::id()
                 )
-                    ->where(
+                    ->whereIn(
                         'despesa_fixa_id',
-                        $despesaFixaAtual->id
+                        $idsRegrasDoGrupo
                     )
                     ->whereDate(
                         'data',
@@ -787,20 +1170,41 @@ class MovimentacaoController extends Controller
                 }
 
                 /*
-                * O status escolhido vale somente para o lançamento
-                * que está sendo editado.
+                * Atualiza o lançamento selecionado quando ele não
+                * precisa permanecer como histórico pago.
+                *
+                * Isso também permite corrigir um lançamento que estava
+                * pago e foi alterado manualmente para A vencer.
                 */
-                if (!$movimentacaoPaga) {
+                if (!$preservarMesPago) {
                     $movimentacao->refresh();
 
-                    $statusAtual = $dados['status'] === 'pago'
-                        ? 'pago'
-                        : 'pendente';
-
                     $movimentacao->update([
-                        'status' => $statusAtual,
-                        'data_pagamento' => $statusAtual === 'pago'
-                            ? now()->toDateString()
+                        'despesa_fixa_id' => $novaDespesaFixa->id,
+                        'tipo' => 'despesa',
+                        'descricao' => $dados['descricao'],
+                        'valor' => $dados['valor'],
+                        'data' => $dataInformada->format('Y-m-d'),
+                        'categoria' => $dados['categoria'] ?? null,
+                        'forma_pagamento' => $dados['forma_pagamento'] ?? null,
+                        'status' => $statusSolicitado,
+                        'observacao' => $dados['observacao'] ?? null,
+
+                        'parcelado' => false,
+                        'parcela_fixa' => true,
+                        'fixo_mensal' => false,
+
+                        'parcela_atual' => null,
+                        'total_parcelas' => null,
+                        'grupo_parcelamento' => null,
+                        'grupo_fixo_mensal' => null,
+
+                        'data_pagamento' => $statusSolicitado === 'pago'
+                            ? (
+                                $movimentacao->data_pagamento
+                                    ? $movimentacao->data_pagamento->format('Y-m-d')
+                                    : now()->toDateString()
+                            )
                             : null,
                     ]);
                 }
@@ -934,6 +1338,7 @@ class MovimentacaoController extends Controller
                 */
                 $novaEntradaFixa = EntradaFixa::create([
                     'user_id' => Auth::id(),
+                    'grupo_recorrencia' => $entradaFixaAtual->grupo_recorrencia,
                     'descricao' => $dados['descricao'],
                     'valor' => $dados['valor'],
                     'data_inicio' => $dataInicioNovaRegra->format('Y-m-d'),
@@ -1091,6 +1496,11 @@ class MovimentacaoController extends Controller
             $dados['forma_pagamento'] = null;
             $dados['data_pagamento'] = null;
         }
+
+        unset(
+            $dados['total_parcelas'],
+            $dados['modo_edicao']
+        );
 
         $movimentacao->update($dados);
 
