@@ -12,6 +12,7 @@ import {
 import { type NavItem, type SharedData } from '@/types';
 import { Link, usePage } from '@inertiajs/react';
 import {
+    BarChart3,
     CreditCard,
     LayoutGrid,
     Tags,
@@ -25,6 +26,11 @@ const mainNavItems: NavItem[] = [
         title: 'Dashboard',
         url: '/dashboard',
         icon: LayoutGrid,
+    },
+    {
+        title: 'Relatórios',
+        url: '/relatorios',
+        icon: BarChart3,
     },
     {
         title: 'Movimentações',
