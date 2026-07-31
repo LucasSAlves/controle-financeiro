@@ -7,6 +7,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\CategoriaController;
 use App\Http\Controllers\FormaPagamentoController;
 use App\Http\Controllers\Admin\UserController;
+use App\Http\Controllers\RelatorioController;
 
 Route::get('/', function () {
     return Inertia::render('welcome');
@@ -15,6 +16,9 @@ Route::get('/', function () {
 Route::middleware(['auth'])->group(function () {
     Route::get('dashboard', [DashboardController::class, 'index'])
         ->name('dashboard');
+
+    Route::get('relatorios', [RelatorioController::class, 'index'])
+        ->name('relatorios.index');
 
     Route::get('/testes', function () {
         abort_unless(app()->environment('local'), 404);

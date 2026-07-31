@@ -3,11 +3,73 @@ import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
 import { Head, Link, router, useForm } from '@inertiajs/react';
 import { type FormEventHandler, useState } from 'react';
+import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 
 type Resumo = {
     entradas: string | number;
     despesas: string | number;
     saldo: string | number;
+};
+
+type PeriodoGrafico = 'semana' | 'mes' | 'ano';
+
+type TipoGrafico = 'geral' | 'despesas' | 'entradas';
+
+type PontoGrafico = {
+    rotulo: string;
+    data: string;
+    valor: string | number;
+    entradas: string | number;
+    despesas: string | number;
+};
+
+type GraficoGastos = {
+    periodo: PeriodoGrafico;
+    titulo: string;
+    unidade_media: 'dia' | 'mês';
+
+    total: string | number;
+    media: string | number;
+    total_anterior: string | number;
+    comparacao_percentual: number | null;
+
+    totais: {
+        entradas: string | number;
+        despesas: string | number;
+        saldo: string | number;
+    };
+
+    medias: {
+        entradas: string | number;
+        despesas: string | number;
+    };
+
+    anterior: {
+        entradas: string | number;
+        despesas: string | number;
+        saldo: string | number;
+    };
+
+    comparacoes: {
+        entradas: number | null;
+        despesas: number | null;
+    };
+
+    pontos: PontoGrafico[];
+};
+
+type TooltipGraficoItem = {
+    dataKey?: string | number;
+    name?: string;
+    value?: string | number;
+    color?: string;
+    payload?: PontoGrafico;
+};
+
+type TooltipGraficoProps = {
+    active?: boolean;
+    label?: string | number;
+    payload?: TooltipGraficoItem[];
 };
 
 type Movimentacao = {
@@ -54,6 +116,7 @@ type AvisosVencimento = {
 
 type Filtros = {
     mes: string;
+    periodo_grafico: PeriodoGrafico;
 };
 
 type PreferenciasNotificacao = {
@@ -65,6 +128,7 @@ type PreferenciasNotificacao = {
 
 type Props = {
     resumo?: Resumo;
+    graficoGastos?: GraficoGastos;
     ultimasMovimentacoes?: Movimentacao[];
     avisosVencimento?: AvisosVencimento;
     filtros?: Filtros;
@@ -89,38 +153,146 @@ function formatarData(data: string) {
     return new Date(`${data}T00:00:00`).toLocaleDateString('pt-BR');
 }
 
-function identificarLancamento(
-    movimentacao: {
-        parcelado: boolean;
-        parcela_fixa: boolean;
-        despesa_fixa_id: number | null;
+function obterMesAtual() {
+    const hoje = new Date();
 
-        fixo_mensal?: boolean;
-        entrada_fixa_id?: number | null;
+    return `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
+}
 
-        parcela_atual: number | null;
-        total_parcelas: number | null;
+function formatarValorCompacto(valor: string | number) {
+    return Number(valor || 0).toLocaleString('pt-BR', {
+        notation: 'compact',
+        maximumFractionDigits: 1,
+    });
+}
+
+function formatarReferenciaGrafico(data: string) {
+    if (/^\d{4}-\d{2}$/.test(data)) {
+        const [ano, mes] = data.split('-').map(Number);
+
+        return new Date(ano, mes - 1, 1).toLocaleDateString('pt-BR', {
+            month: 'long',
+            year: 'numeric',
+        });
+    }
+
+    return formatarData(data);
+}
+
+function textoComparacao(percentual: number | null) {
+    if (percentual === null) {
+        return 'Sem base no período anterior';
+    }
+
+    if (percentual === 0) {
+        return 'Mesmo total do período anterior';
+    }
+
+    const valor = Math.abs(percentual).toLocaleString('pt-BR', {
+        minimumFractionDigits: 1,
+        maximumFractionDigits: 1,
+    });
+
+    return percentual > 0 ? `${valor}% a mais que o período anterior` : `${valor}% a menos que o período anterior`;
+}
+
+function classeComparacao(tipo: 'entradas' | 'despesas', percentual: number | null) {
+    if (percentual === null || percentual === 0) {
+        return 'mt-1 text-xs text-muted-foreground';
+    }
+
+    const resultadoFavoravel = tipo === 'entradas' ? percentual > 0 : percentual < 0;
+
+    return resultadoFavoravel ? 'mt-1 text-xs font-medium text-green-600' : 'mt-1 text-xs font-medium text-red-600';
+}
+
+function TooltipGrafico({ active, payload, label }: TooltipGraficoProps) {
+    if (!active || !payload?.length) {
+        return null;
+    }
+
+    const ponto = payload[0]?.payload;
+
+    return (
+        <div className="border-border bg-card rounded-xl border p-3 shadow-lg">
+            <p className="text-muted-foreground text-xs font-medium">{ponto?.data ? formatarReferenciaGrafico(ponto.data) : label}</p>
+
+            <div className="mt-2 space-y-1">
+                {payload.map((item) => {
+                    const nome = item.dataKey === 'entradas' ? 'Entradas' : 'Despesas';
+
+                    return (
+                        <p
+                            key={String(item.dataKey)}
+                            className="text-sm font-bold"
+                            style={{
+                                color: item.color,
+                            }}
+                        >
+                            {nome}: {formatarMoeda(item.value ?? 0)}
+                        </p>
+                    );
+                })}
+            </div>
+        </div>
+    );
+}
+
+const periodosGrafico: Array<{
+    valor: PeriodoGrafico;
+    titulo: string;
+}> = [
+    {
+        valor: 'semana',
+        titulo: 'Semana',
     },
-): string | null {
-    if (
-        movimentacao.fixo_mensal &&
-        movimentacao.entrada_fixa_id
-    ) {
+    {
+        valor: 'mes',
+        titulo: 'Mês',
+    },
+    {
+        valor: 'ano',
+        titulo: 'Ano',
+    },
+];
+
+const tiposGrafico: Array<{
+    valor: TipoGrafico;
+    titulo: string;
+}> = [
+    {
+        valor: 'geral',
+        titulo: 'Geral',
+    },
+    {
+        valor: 'despesas',
+        titulo: 'Despesas',
+    },
+    {
+        valor: 'entradas',
+        titulo: 'Entradas',
+    },
+];
+function identificarLancamento(movimentacao: {
+    parcelado: boolean;
+    parcela_fixa: boolean;
+    despesa_fixa_id: number | null;
+
+    fixo_mensal?: boolean;
+    entrada_fixa_id?: number | null;
+
+    parcela_atual: number | null;
+    total_parcelas: number | null;
+}): string | null {
+    if (movimentacao.fixo_mensal && movimentacao.entrada_fixa_id) {
         return 'Entrada fixa';
     }
 
-    if (
-        movimentacao.parcela_fixa &&
-        movimentacao.despesa_fixa_id
-    ) {
+    if (movimentacao.parcela_fixa && movimentacao.despesa_fixa_id) {
         return 'Parcela fixa';
     }
 
-    if (
-        movimentacao.parcelado &&
-        movimentacao.parcela_atual &&
-        movimentacao.total_parcelas
-    ) {
+    if (movimentacao.parcelado && movimentacao.parcela_atual && movimentacao.total_parcelas) {
         return `Parcela ${movimentacao.parcela_atual}/${movimentacao.total_parcelas}`;
     }
 
@@ -133,6 +305,41 @@ export default function Dashboard({
         despesas: 0,
         saldo: 0,
     },
+
+    graficoGastos = {
+        periodo: 'mes',
+        titulo: '',
+        unidade_media: 'dia',
+
+        total: 0,
+        media: 0,
+        total_anterior: 0,
+        comparacao_percentual: null,
+
+        totais: {
+            entradas: 0,
+            despesas: 0,
+            saldo: 0,
+        },
+
+        medias: {
+            entradas: 0,
+            despesas: 0,
+        },
+
+        anterior: {
+            entradas: 0,
+            despesas: 0,
+            saldo: 0,
+        },
+
+        comparacoes: {
+            entradas: null,
+            despesas: null,
+        },
+
+        pontos: [],
+    },
     ultimasMovimentacoes = [],
     avisosVencimento = {
         vencidas: [],
@@ -140,25 +347,24 @@ export default function Dashboard({
         proximosDias: [],
     },
     filtros = {
-        mes: new Date().toISOString().slice(0, 7),
+        mes: obterMesAtual(),
+        periodo_grafico: 'mes',
     },
-}:
-Props) {
-        const [parcelaParaPagar, setParcelaParaPagar] =
-            useState<AvisoVencimentoItem | null>(null);
+}: Props) {
+    const [parcelaParaPagar, setParcelaParaPagar] = useState<AvisoVencimentoItem | null>(null);
 
-        const [marcandoComoPago, setMarcandoComoPago] =
-            useState(false);
+    const [marcandoComoPago, setMarcandoComoPago] = useState(false);
 
-        const {
-            data: dadosNotificacao,
-            setData: setDadosNotificacao,
-            patch: salvarPreferencias,
-            processing: salvandoPreferencias,
-        } = useForm({
-            receber_aviso_email:
-                preferenciasNotificacao.receber_aviso_email ?? true,
-        });
+    const [tipoGrafico, setTipoGrafico] = useState<TipoGrafico>('geral');
+
+    const {
+        data: dadosNotificacao,
+        setData: setDadosNotificacao,
+        patch: salvarPreferencias,
+        processing: salvandoPreferencias,
+    } = useForm({
+        receber_aviso_email: preferenciasNotificacao.receber_aviso_email ?? true,
+    });
 
     const enviarPreferencias: FormEventHandler = (event) => {
         event.preventDefault();
@@ -171,10 +377,29 @@ Props) {
     function alterarMes(mes: string) {
         router.get(
             '/dashboard',
-            { mes },
+            {
+                mes,
+                periodo_grafico: filtros.periodo_grafico,
+            },
             {
                 preserveState: true,
                 preserveScroll: true,
+                replace: true,
+            },
+        );
+    }
+
+    function alterarPeriodoGrafico(periodo: PeriodoGrafico) {
+        router.get(
+            '/dashboard',
+            {
+                mes: filtros.mes,
+                periodo_grafico: periodo,
+            },
+            {
+                preserveState: true,
+                preserveScroll: true,
+                replace: true,
             },
         );
     }
@@ -207,28 +432,27 @@ Props) {
         );
     }
 
-    const temAvisos =
-        avisosVencimento.vencidas.length > 0 ||
-        avisosVencimento.vencemHoje.length > 0 ||
-        avisosVencimento.proximosDias.length > 0;
+    const temAvisos = avisosVencimento.vencidas.length > 0 || avisosVencimento.vencemHoje.length > 0 || avisosVencimento.proximosDias.length > 0;
 
-    function renderizarListaAvisos(
-        titulo: string,
-        descricao: string,
-        parcelas: AvisoVencimentoItem[],
-        tipo: 'vencida' | 'hoje' | 'proxima',
-    ) {
+    const tipoDetalhado: 'entradas' | 'despesas' = tipoGrafico === 'entradas' ? 'entradas' : 'despesas';
+
+    const totalDetalhado = graficoGastos.totais[tipoDetalhado];
+
+    const mediaDetalhada = graficoGastos.medias[tipoDetalhado];
+
+    const totalAnteriorDetalhado = graficoGastos.anterior[tipoDetalhado];
+
+    const comparacaoDetalhada = graficoGastos.comparacoes[tipoDetalhado];
+
+    function renderizarListaAvisos(titulo: string, descricao: string, parcelas: AvisoVencimentoItem[], tipo: 'vencida' | 'hoje' | 'proxima') {
         if (parcelas.length === 0) {
             return null;
         }
 
         const estilos = {
-            vencida:
-                'border-red-200 bg-red-50 text-red-950 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-100',
-            hoje:
-                'border-amber-200 bg-amber-50 text-amber-950 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-100',
-            proxima:
-                'border-blue-200 bg-blue-50 text-blue-950 dark:border-blue-900/60 dark:bg-blue-950/40 dark:text-blue-100',
+            vencida: 'border-red-200 bg-red-50 text-red-950 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-100',
+            hoje: 'border-amber-200 bg-amber-50 text-amber-950 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-100',
+            proxima: 'border-blue-200 bg-blue-50 text-blue-950 dark:border-blue-900/60 dark:bg-blue-950/40 dark:text-blue-100',
         };
 
         return (
@@ -241,19 +465,12 @@ Props) {
 
                 <div className="divide-y divide-black/10 dark:divide-white/10">
                     {parcelas.map((parcela) => (
-                        <div
-                            key={parcela.id}
-                            className="flex flex-col gap-3 py-4 md:flex-row md:items-center md:justify-between"
-                        >
+                        <div key={parcela.id} className="flex flex-col gap-3 py-4 md:flex-row md:items-center md:justify-between">
                             <div>
-                                <p className="font-semibold">
-                                    {parcela.descricao}
-                                </p>
+                                <p className="font-semibold">{parcela.descricao}</p>
 
                                 {identificarLancamento(parcela) && (
-                                    <p className="mt-1 text-xs font-semibold opacity-80">
-                                        {identificarLancamento(parcela)}
-                                    </p>
+                                    <p className="mt-1 text-xs font-semibold opacity-80">{identificarLancamento(parcela)}</p>
                                 )}
 
                                 <p className="mt-1 text-sm opacity-80">
@@ -299,147 +516,110 @@ Props) {
                         role="dialog"
                         aria-modal="true"
                         aria-labelledby="titulo-preferencias-notificacao"
-                        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-border bg-card p-6 shadow-2xl"
+                        className="border-border bg-card max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl border p-6 shadow-2xl"
                     >
                         <div className="mb-6">
-                            <p className="text-sm font-semibold text-primary">
-                                Configuração inicial
-                            </p>
+                            <p className="text-primary text-sm font-semibold">Configuração inicial</p>
 
-                            <h2
-                                id="titulo-preferencias-notificacao"
-                                className="mt-1 text-2xl font-bold text-foreground"
-                            >
+                            <h2 id="titulo-preferencias-notificacao" className="text-foreground mt-1 text-2xl font-bold">
                                 Como deseja receber seus avisos?
                             </h2>
 
-                            <p className="mt-2 text-sm text-muted-foreground">
-                                Escolha como o Controle Financeiro deverá avisar
-                                sobre despesas próximas do vencimento. Você poderá
-                                alterar essa opção depois em Configurações.
+                            <p className="text-muted-foreground mt-2 text-sm">
+                                Escolha como o Controle Financeiro deverá avisar sobre despesas próximas do vencimento. Você poderá alterar essa opção
+                                depois em Configurações.
                             </p>
                         </div>
 
-                        <form
-                            onSubmit={enviarPreferencias}
-                            className="space-y-5"
-                        >
+                        <form onSubmit={enviarPreferencias} className="space-y-5">
                             <label
                                 htmlFor="modal_receber_aviso_email"
-                                className="flex cursor-pointer items-start gap-3 rounded-xl border border-border p-4 transition hover:bg-muted/50"
+                                className="border-border hover:bg-muted/50 flex cursor-pointer items-start gap-3 rounded-xl border p-4 transition"
                             >
                                 <input
                                     id="modal_receber_aviso_email"
                                     type="checkbox"
-                                    checked={
-                                        dadosNotificacao.receber_aviso_email
-                                    }
-                                    onChange={(event) =>
-                                        setDadosNotificacao(
-                                            'receber_aviso_email',
-                                            event.target.checked,
-                                        )
-                                    }
-                                    className="mt-1 h-4 w-4 cursor-pointer rounded border-input"
+                                    checked={dadosNotificacao.receber_aviso_email}
+                                    onChange={(event) => setDadosNotificacao('receber_aviso_email', event.target.checked)}
+                                    className="border-input mt-1 h-4 w-4 cursor-pointer rounded"
                                 />
 
                                 <div>
-                                    <p className="font-semibold text-foreground">
-                                        Receber por e-mail
-                                    </p>
+                                    <p className="text-foreground font-semibold">Receber por e-mail</p>
 
-                                    <p className="mt-1 text-sm text-muted-foreground">
-                                        Os avisos serão enviados para o e-mail da
-                                        sua conta.
-                                    </p>
+                                    <p className="text-muted-foreground mt-1 text-sm">Os avisos serão enviados para o e-mail da sua conta.</p>
                                 </div>
                             </label>
 
-                            <div className="flex items-start gap-3 rounded-xl border border-dashed border-border bg-muted/40 p-4 opacity-70">
+                            <div className="border-border bg-muted/40 flex items-start gap-3 rounded-xl border border-dashed p-4 opacity-70">
                                 <input
                                     id="modal_receber_aviso_whatsapp"
                                     type="checkbox"
                                     checked={false}
                                     disabled
                                     readOnly
-                                    className="mt-1 h-4 w-4 cursor-not-allowed rounded border-input"
+                                    className="border-input mt-1 h-4 w-4 cursor-not-allowed rounded"
                                 />
 
                                 <div className="flex-1">
                                     <div className="flex flex-wrap items-center gap-2">
-                                        <p className="font-semibold text-foreground">
-                                            Receber pelo WhatsApp
-                                        </p>
+                                        <p className="text-foreground font-semibold">Receber pelo WhatsApp</p>
 
-                                        <span className="rounded-full bg-muted px-2.5 py-1 text-xs font-semibold text-muted-foreground">
+                                        <span className="bg-muted text-muted-foreground rounded-full px-2.5 py-1 text-xs font-semibold">
                                             Indisponível no momento
                                         </span>
                                     </div>
 
-                                    <p className="mt-1 text-sm text-muted-foreground">
-                                        A integração com o WhatsApp está temporariamente
-                                        indisponível. Os avisos continuam funcionando
-                                        normalmente por e-mail.
+                                    <p className="text-muted-foreground mt-1 text-sm">
+                                        A integração com o WhatsApp está temporariamente indisponível. Os avisos continuam funcionando normalmente por
+                                        e-mail.
                                     </p>
                                 </div>
                             </div>
 
-
-
-                            {!dadosNotificacao.receber_aviso_email &&
-                                (
-                                    <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
-                                        Você não receberá avisos de vencimento enquanto o envio por e-mail estiver desativado.
-                                    </div>
-                                )}
+                            {!dadosNotificacao.receber_aviso_email && (
+                                <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+                                    Você não receberá avisos de vencimento enquanto o envio por e-mail estiver desativado.
+                                </div>
+                            )}
 
                             <button
                                 type="submit"
                                 disabled={salvandoPreferencias}
-                                className="w-full rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground shadow-sm transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+                                className="bg-primary text-primary-foreground w-full rounded-lg px-4 py-2.5 text-sm font-semibold shadow-sm transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
                             >
-                                {salvandoPreferencias
-                                    ? 'Salvando...'
-                                    : 'Salvar preferências'}
+                                {salvandoPreferencias ? 'Salvando...' : 'Salvar preferências'}
                             </button>
                         </form>
                     </div>
                 </div>
             )}
             <div className="flex flex-col gap-6 p-4">
-                <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+                <div className="border-border bg-card rounded-2xl border p-5 shadow-sm">
                     <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                         <div>
-                            <p className="text-sm font-semibold text-primary">
-                                Dashboard financeiro
-                            </p>
+                            <p className="text-primary text-sm font-semibold">Dashboard financeiro</p>
 
-                            <h1 className="mt-1 text-2xl font-bold text-foreground">
-                                Controle Financeiro
-                            </h1>
+                            <h1 className="text-foreground mt-1 text-2xl font-bold">Controle Financeiro</h1>
 
-                            <p className="mt-1 text-sm text-muted-foreground">
-                                Acompanhe suas entradas, despesas e saldo do mês selecionado.
-                            </p>
+                            <p className="text-muted-foreground mt-1 text-sm">Acompanhe suas entradas, despesas e saldo do mês selecionado.</p>
                         </div>
 
                         <div className="flex flex-col gap-3 md:flex-row md:items-end">
                             <div className="flex flex-col gap-1">
-                                <label className="text-sm font-medium text-foreground">
-                                    Filtrar por mês
-                                </label>
+                                <label className="text-foreground text-sm font-medium">Filtrar por mês</label>
 
                                 <input
                                     type="month"
                                     value={filtros.mes}
                                     onChange={(event) => alterarMes(event.target.value)}
-                                    className="rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
+                                    className="border-input bg-background text-foreground focus:border-primary focus:ring-primary/20 rounded-lg border px-3 py-2 text-sm transition outline-none focus:ring-2"
                                 />
                             </div>
 
                             <Link
                                 href="/movimentacoes"
-                                className="rounded-lg bg-primary px-4 py-2 text-center text-sm font-semibold text-primary-foreground shadow-sm transition hover:opacity-90"
+                                className="bg-primary text-primary-foreground rounded-lg px-4 py-2 text-center text-sm font-semibold shadow-sm transition hover:opacity-90"
                             >
                                 Ver movimentações
                             </Link>
@@ -448,52 +628,40 @@ Props) {
                 </div>
 
                 <div className="grid gap-4 md:grid-cols-3">
-                    <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+                    <div className="border-border bg-card rounded-2xl border p-5 shadow-sm">
                         <div className="flex items-center justify-between">
-                            <p className="text-sm font-medium text-muted-foreground">
-                                Entradas do mês
-                            </p>
+                            <p className="text-muted-foreground text-sm font-medium">Entradas do mês</p>
 
                             <span className="rounded-full bg-green-100 px-2.5 py-1 text-xs font-semibold text-green-700 dark:bg-green-950 dark:text-green-300">
                                 Entrada
                             </span>
                         </div>
 
-                        <h2 className="mt-3 text-2xl font-bold text-green-600">
-                            {formatarMoeda(resumo.entradas)}
-                        </h2>
+                        <h2 className="mt-3 text-2xl font-bold text-green-600">{formatarMoeda(resumo.entradas)}</h2>
                     </div>
 
-                    <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+                    <div className="border-border bg-card rounded-2xl border p-5 shadow-sm">
                         <div className="flex items-center justify-between">
-                            <p className="text-sm font-medium text-muted-foreground">
-                                Despesas do mês
-                            </p>
+                            <p className="text-muted-foreground text-sm font-medium">Despesas do mês</p>
 
                             <span className="rounded-full bg-red-100 px-2.5 py-1 text-xs font-semibold text-red-700 dark:bg-red-950 dark:text-red-300">
                                 Saída
                             </span>
                         </div>
 
-                        <h2 className="mt-3 text-2xl font-bold text-red-600">
-                            {formatarMoeda(resumo.despesas)}
-                        </h2>
+                        <h2 className="mt-3 text-2xl font-bold text-red-600">{formatarMoeda(resumo.despesas)}</h2>
                     </div>
 
-                    <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+                    <div className="border-border bg-card rounded-2xl border p-5 shadow-sm">
                         <div className="flex items-center justify-between">
-                            <p className="text-sm font-medium text-muted-foreground">
-                                Saldo atual
-                            </p>
+                            <p className="text-muted-foreground text-sm font-medium">Saldo atual</p>
 
                             <span className="rounded-full bg-blue-100 px-2.5 py-1 text-xs font-semibold text-blue-700 dark:bg-blue-950 dark:text-blue-300">
                                 Saldo
                             </span>
                         </div>
 
-                        <h2 className="mt-3 text-2xl font-bold text-primary">
-                            {formatarMoeda(resumo.saldo)}
-                        </h2>
+                        <h2 className="text-primary mt-3 text-2xl font-bold">{formatarMoeda(resumo.saldo)}</h2>
                     </div>
                 </div>
 
@@ -506,12 +674,7 @@ Props) {
                             'vencida',
                         )}
 
-                        {renderizarListaAvisos(
-                            'Despesas vencem hoje',
-                            'Estas despesas pendentes vencem hoje.',
-                            avisosVencimento.vencemHoje,
-                            'hoje',
-                        )}
+                        {renderizarListaAvisos('Despesas vencem hoje', 'Estas despesas pendentes vencem hoje.', avisosVencimento.vencemHoje, 'hoje')}
 
                         {renderizarListaAvisos(
                             'Despesas próximas do vencimento',
@@ -522,15 +685,11 @@ Props) {
                     </div>
                 )}
 
-                <div className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-5 shadow-sm md:flex-row md:items-center md:justify-between">
+                <div className="border-border bg-card flex flex-col gap-3 rounded-2xl border p-5 shadow-sm md:flex-row md:items-center md:justify-between">
                     <div>
-                        <h2 className="text-lg font-bold text-foreground">
-                            Movimentações financeiras
-                        </h2>
+                        <h2 className="text-foreground text-lg font-bold">Movimentações financeiras</h2>
 
-                        <p className="text-sm text-muted-foreground">
-                            Cadastre entradas e despesas para acompanhar o caixa.
-                        </p>
+                        <p className="text-muted-foreground text-sm">Cadastre entradas e despesas para acompanhar o caixa.</p>
                     </div>
 
                     <div className="flex gap-3">
@@ -550,18 +709,14 @@ Props) {
                     </div>
                 </div>
 
-                <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
-                    <div className="border-b border-border p-5">
-                        <h2 className="text-lg font-bold text-foreground">
-                            Últimas movimentações
-                        </h2>
+                <div className="border-border bg-card overflow-hidden rounded-2xl border shadow-sm">
+                    <div className="border-border border-b p-5">
+                        <h2 className="text-foreground text-lg font-bold">Últimas movimentações</h2>
                     </div>
 
                     {ultimasMovimentacoes.length === 0 ? (
                         <div className="p-8 text-center">
-                            <p className="text-sm text-muted-foreground">
-                                Nenhuma movimentação cadastrada ainda.
-                            </p>
+                            <p className="text-muted-foreground text-sm">Nenhuma movimentação cadastrada ainda.</p>
                         </div>
                     ) : (
                         <div className="overflow-x-auto">
@@ -572,21 +727,14 @@ Props) {
                                         <th className="px-5 py-3 font-semibold">Tipo</th>
                                         <th className="px-5 py-3 font-semibold">Descrição</th>
                                         <th className="px-5 py-3 font-semibold">Categoria</th>
-                                        <th className="px-5 py-3 text-right font-semibold">
-                                            Valor
-                                        </th>
+                                        <th className="px-5 py-3 text-right font-semibold">Valor</th>
                                     </tr>
                                 </thead>
 
-                                <tbody className="divide-y divide-border">
+                                <tbody className="divide-border divide-y">
                                     {ultimasMovimentacoes.map((movimentacao) => (
-                                        <tr
-                                            key={movimentacao.id}
-                                            className="transition hover:bg-muted/50"
-                                        >
-                                            <td className="px-5 py-4 text-muted-foreground">
-                                                {formatarData(movimentacao.data)}
-                                            </td>
+                                        <tr key={movimentacao.id} className="hover:bg-muted/50 transition">
+                                            <td className="text-muted-foreground px-5 py-4">{formatarData(movimentacao.data)}</td>
 
                                             <td className="px-5 py-4">
                                                 <span
@@ -596,22 +744,17 @@ Props) {
                                                             : 'rounded-full bg-red-100 px-3 py-1 text-xs font-semibold text-red-700 dark:bg-red-950 dark:text-red-300'
                                                     }
                                                 >
-                                                    {movimentacao.tipo === 'entrada'
-                                                        ? 'Entrada'
-                                                        : 'Despesa'}
+                                                    {movimentacao.tipo === 'entrada' ? 'Entrada' : 'Despesa'}
                                                 </span>
                                             </td>
 
                                             <td className="px-5 py-4">
-                                                <p className="font-semibold text-foreground">
-                                                    {movimentacao.descricao}
-                                                </p>
+                                                <p className="text-foreground font-semibold">{movimentacao.descricao}</p>
 
                                                 {identificarLancamento(movimentacao) && (
                                                     <p
                                                         className={
-                                                            movimentacao.fixo_mensal &&
-                                                            movimentacao.entrada_fixa_id
+                                                            movimentacao.fixo_mensal && movimentacao.entrada_fixa_id
                                                                 ? 'mt-1 text-xs font-medium text-green-600 dark:text-green-400'
                                                                 : 'mt-1 text-xs font-medium text-blue-600 dark:text-blue-400'
                                                         }
@@ -621,9 +764,7 @@ Props) {
                                                 )}
                                             </td>
 
-                                            <td className="px-5 py-4 text-muted-foreground">
-                                                {movimentacao.categoria || '-'}
-                                            </td>
+                                            <td className="text-muted-foreground px-5 py-4">{movimentacao.categoria || '-'}</td>
 
                                             <td
                                                 className={
@@ -640,6 +781,182 @@ Props) {
                             </table>
                         </div>
                     )}
+                </div>
+
+                <div className="border-border bg-card overflow-hidden rounded-2xl border shadow-sm">
+                    <div className="border-border flex flex-col gap-5 border-b p-5 lg:flex-row lg:items-start lg:justify-between">
+                        <div>
+                            <p className="text-primary text-sm font-semibold">Análise financeira</p>
+
+                            <h2 className="text-foreground mt-1 text-xl font-bold">Entradas e despesas por período</h2>
+
+                            <p className="text-muted-foreground mt-1 text-sm">Compare suas entradas, despesas e o saldo por semana, mês ou ano.</p>
+                        </div>
+
+                        <div className="flex w-full flex-col gap-3 lg:w-auto">
+                            <div className="bg-muted inline-flex w-full rounded-xl p-1 lg:w-auto">
+                                {tiposGrafico.map((tipo) => (
+                                    <button
+                                        key={tipo.valor}
+                                        type="button"
+                                        onClick={() => setTipoGrafico(tipo.valor)}
+                                        className={
+                                            tipoGrafico === tipo.valor
+                                                ? 'bg-background text-foreground flex-1 rounded-lg px-4 py-2 text-sm font-semibold shadow-sm transition lg:flex-none'
+                                                : 'text-muted-foreground hover:text-foreground flex-1 rounded-lg px-4 py-2 text-sm font-medium transition lg:flex-none'
+                                        }
+                                    >
+                                        {tipo.titulo}
+                                    </button>
+                                ))}
+                            </div>
+
+                            <div className="bg-muted inline-flex w-full rounded-xl p-1 lg:w-auto">
+                                {periodosGrafico.map((periodo) => (
+                                    <button
+                                        key={periodo.valor}
+                                        type="button"
+                                        onClick={() => alterarPeriodoGrafico(periodo.valor)}
+                                        className={
+                                            graficoGastos.periodo === periodo.valor
+                                                ? 'bg-background text-foreground flex-1 rounded-lg px-4 py-2 text-sm font-semibold shadow-sm transition lg:flex-none'
+                                                : 'text-muted-foreground hover:text-foreground flex-1 rounded-lg px-4 py-2 text-sm font-medium transition lg:flex-none'
+                                        }
+                                    >
+                                        {periodo.titulo}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+
+                    {tipoGrafico === 'geral' ? (
+                        <div className="grid gap-4 p-5 md:grid-cols-3">
+                            <div className="border-border bg-background rounded-xl border p-4">
+                                <p className="text-muted-foreground text-sm font-medium">Total de entradas</p>
+
+                                <p className="mt-2 text-2xl font-bold text-green-600">{formatarMoeda(graficoGastos.totais.entradas)}</p>
+
+                                <p className="text-muted-foreground mt-1 text-xs">{graficoGastos.titulo}</p>
+                            </div>
+
+                            <div className="border-border bg-background rounded-xl border p-4">
+                                <p className="text-muted-foreground text-sm font-medium">Total de despesas</p>
+
+                                <p className="mt-2 text-2xl font-bold text-red-600">{formatarMoeda(graficoGastos.totais.despesas)}</p>
+
+                                <p className="text-muted-foreground mt-1 text-xs">{graficoGastos.titulo}</p>
+                            </div>
+
+                            <div className="border-border bg-background rounded-xl border p-4">
+                                <p className="text-muted-foreground text-sm font-medium">Saldo do período</p>
+
+                                <p
+                                    className={
+                                        Number(graficoGastos.totais.saldo) >= 0
+                                            ? 'mt-2 text-2xl font-bold text-green-600'
+                                            : 'mt-2 text-2xl font-bold text-red-600'
+                                    }
+                                >
+                                    {formatarMoeda(graficoGastos.totais.saldo)}
+                                </p>
+
+                                <p className="text-muted-foreground mt-1 text-xs">Entradas menos despesas</p>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="grid gap-4 p-5 md:grid-cols-3">
+                            <div className="border-border bg-background rounded-xl border p-4">
+                                <p className="text-muted-foreground text-sm font-medium">
+                                    {tipoDetalhado === 'entradas' ? 'Total de entradas' : 'Total de despesas'}
+                                </p>
+
+                                <p
+                                    className={
+                                        tipoDetalhado === 'entradas'
+                                            ? 'mt-2 text-2xl font-bold text-green-600'
+                                            : 'mt-2 text-2xl font-bold text-red-600'
+                                    }
+                                >
+                                    {formatarMoeda(totalDetalhado)}
+                                </p>
+
+                                <p className="text-muted-foreground mt-1 text-xs">{graficoGastos.titulo}</p>
+                            </div>
+
+                            <div className="border-border bg-background rounded-xl border p-4">
+                                <p className="text-muted-foreground text-sm font-medium">Média por {graficoGastos.unidade_media}</p>
+
+                                <p className="text-foreground mt-2 text-2xl font-bold">{formatarMoeda(mediaDetalhada)}</p>
+
+                                <p className="text-muted-foreground mt-1 text-xs">Considerando o período decorrido</p>
+                            </div>
+
+                            <div className="border-border bg-background rounded-xl border p-4">
+                                <p className="text-muted-foreground text-sm font-medium">Período anterior</p>
+
+                                <p className="text-foreground mt-2 text-2xl font-bold">{formatarMoeda(totalAnteriorDetalhado)}</p>
+
+                                <p className={classeComparacao(tipoDetalhado, comparacaoDetalhada)}>{textoComparacao(comparacaoDetalhada)}</p>
+                            </div>
+                        </div>
+                    )}
+
+                    <div className="h-80 px-2 pb-5 sm:px-5">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <LineChart
+                                data={graficoGastos.pontos}
+                                margin={{
+                                    top: 10,
+                                    right: 12,
+                                    left: -10,
+                                    bottom: 0,
+                                }}
+                            >
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+
+                                <XAxis dataKey="rotulo" axisLine={false} tickLine={false} minTickGap={18} fontSize={12} />
+
+                                <YAxis axisLine={false} tickLine={false} width={70} fontSize={12} tickFormatter={formatarValorCompacto} />
+
+                                <Tooltip content={<TooltipGrafico />} />
+
+                                {tipoGrafico === 'geral' && <Legend verticalAlign="top" height={36} />}
+
+                                {tipoGrafico !== 'despesas' && (
+                                    <Line
+                                        type="monotone"
+                                        dataKey="entradas"
+                                        name="Entradas"
+                                        stroke="#16a34a"
+                                        strokeWidth={3}
+                                        dot={{
+                                            r: 3,
+                                        }}
+                                        activeDot={{
+                                            r: 6,
+                                        }}
+                                    />
+                                )}
+
+                                {tipoGrafico !== 'entradas' && (
+                                    <Line
+                                        type="monotone"
+                                        dataKey="despesas"
+                                        name="Despesas"
+                                        stroke="#dc2626"
+                                        strokeWidth={3}
+                                        dot={{
+                                            r: 3,
+                                        }}
+                                        activeDot={{
+                                            r: 6,
+                                        }}
+                                    />
+                                )}
+                            </LineChart>
+                        </ResponsiveContainer>
+                    </div>
                 </div>
             </div>
             {parcelaParaPagar && (
