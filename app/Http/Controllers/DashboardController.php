@@ -3,8 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Models\Movimentacao;
+use App\Services\CalcularSaldoAcumulado;
 use App\Services\GerarDespesasFixasMensais;
 use App\Services\GerarEntradasFixasMensais;
+use App\Services\GerarMovimentacoesFixasAteCompetencia;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
@@ -17,7 +19,9 @@ class DashboardController extends Controller
     public function index(
         Request $request,
         GerarDespesasFixasMensais $geradorDespesasFixas,
-        GerarEntradasFixasMensais $geradorEntradasFixas
+        GerarEntradasFixasMensais $geradorEntradasFixas,
+        GerarMovimentacoesFixasAteCompetencia $geradorHistoricoFixo,
+        CalcularSaldoAcumulado $calculadorSaldo
     ): Response
     {
         $user = $request->user();
@@ -37,6 +41,20 @@ class DashboardController extends Controller
         if (! in_array($periodoGrafico, ['semana', 'mes', 'ano'], true)) {
             $periodoGrafico = 'mes';
         }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | GARANTIR HISTÓRICO DAS MOVIMENTAÇÕES FIXAS
+        |--------------------------------------------------------------------------
+        | Gera as competências fixas desde a primeira recorrência do usuário
+        | até o mês selecionado. Os serviços individuais impedem duplicações
+        | e respeitam meses excluídos e recorrências encerradas.
+        */
+        $geradorHistoricoFixo->gerar(
+            (int) $user->id,
+            $fimDoMes
+        );
 
         /*
         |--------------------------------------------------------------------------
@@ -82,17 +100,27 @@ class DashboardController extends Controller
             $hoje
         );
 
-        $totalEntradas = Movimentacao::where('user_id', Auth::id())
-            ->where('tipo', 'entrada')
-            ->whereBetween('data', [$inicioDoMes, $fimDoMes])
-            ->sum('valor');
+        /*
+        |--------------------------------------------------------------------------
+        | SALDO ACUMULADO DO MÊS
+        |--------------------------------------------------------------------------
+        | Mantém a regra atual do Dashboard:
+        | - cálculo pela data do lançamento;
+        | - todas as entradas;
+        | - todas as despesas;
+        | - sem filtro de status.
+        */
+        $saldoAcumulado = $calculadorSaldo->calcular(
+            (int) $user->id,
+            $inicioDoMes,
+            $fimDoMes
+        );
 
-        $totalDespesas = Movimentacao::where('user_id', Auth::id())
-            ->where('tipo', 'despesa')
-            ->whereBetween('data', [$inicioDoMes, $fimDoMes])
-            ->sum('valor');
-
-        $saldo = $totalEntradas - $totalDespesas;
+        $saldoAnterior = $saldoAcumulado['saldo_inicial'];
+        $totalEntradas = $saldoAcumulado['entradas'];
+        $totalDespesas = $saldoAcumulado['despesas'];
+        $totalDisponivel = $saldoAcumulado['total_disponivel'];
+        $saldo = $saldoAcumulado['saldo_final'];
 
         $ultimasMovimentacoes = Movimentacao::where('user_id', Auth::id())
             ->whereBetween('data', [$inicioDoMes, $fimDoMes])
@@ -200,8 +228,10 @@ class DashboardController extends Controller
                 'telefone_whatsapp' => $user->telefone_whatsapp,
             ],
             'resumo' => [
+                'saldo_anterior' => $saldoAnterior,
                 'entradas' => $totalEntradas,
                 'despesas' => $totalDespesas,
+                'total_disponivel' => $totalDisponivel,
                 'saldo' => $saldo,
             ],
             'graficoGastos' => $graficoGastos,

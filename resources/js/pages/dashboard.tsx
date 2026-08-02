@@ -6,8 +6,10 @@ import { type FormEventHandler, useState } from 'react';
 import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 
 type Resumo = {
+    saldo_anterior: string | number;
     entradas: string | number;
     despesas: string | number;
+    total_disponivel: string | number;
     saldo: string | number;
 };
 
@@ -147,6 +149,20 @@ function formatarMoeda(valor: string | number) {
         style: 'currency',
         currency: 'BRL',
     });
+}
+
+function classeValorSaldo(valor: string | number) {
+    const numero = Number(valor || 0);
+
+    if (numero > 0) {
+        return 'mt-3 text-2xl font-bold text-green-600';
+    }
+
+    if (numero < 0) {
+        return 'mt-3 text-2xl font-bold text-red-600';
+    }
+
+    return 'text-foreground mt-3 text-2xl font-bold';
 }
 
 function formatarData(data: string) {
@@ -301,10 +317,12 @@ function identificarLancamento(movimentacao: {
 export default function Dashboard({
     preferenciasNotificacao,
     resumo = {
-        entradas: 0,
-        despesas: 0,
-        saldo: 0,
-    },
+    saldo_anterior: 0,
+    entradas: 0,
+    despesas: 0,
+    total_disponivel: 0,
+    saldo: 0,
+},
 
     graficoGastos = {
         periodo: 'mes',
@@ -594,32 +612,40 @@ export default function Dashboard({
                     </div>
                 </div>
             )}
-            <div className="flex flex-col gap-6 p-4">
-                <div className="border-border bg-card rounded-2xl border p-5 shadow-sm">
-                    <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                        <div>
-                            <p className="text-primary text-sm font-semibold">Dashboard financeiro</p>
+            <div className="box-border flex w-full max-w-[100dvw] min-w-0 flex-col gap-4 overflow-x-hidden p-3 sm:max-w-full sm:gap-6 sm:p-4">
+                <div className="border-border bg-card box-border w-full min-w-0 max-w-full overflow-hidden rounded-2xl border p-4 shadow-sm sm:p-5">
+                    <div className="flex min-w-0 flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                        <div className="min-w-0">
+                            <p className="text-primary text-sm font-semibold">
+                                Dashboard financeiro
+                            </p>
 
-                            <h1 className="text-foreground mt-1 text-2xl font-bold">Controle Financeiro</h1>
+                            <h1 className="text-foreground mt-1 break-words text-2xl font-bold">
+                                Controle Financeiro
+                            </h1>
 
-                            <p className="text-muted-foreground mt-1 text-sm">Acompanhe suas entradas, despesas e saldo do mês selecionado.</p>
+                            <p className="text-muted-foreground mt-1 max-w-full break-words text-sm">
+                                Acompanhe suas entradas, despesas e saldo do mês selecionado.
+                            </p>
                         </div>
 
-                        <div className="flex flex-col gap-3 md:flex-row md:items-end">
-                            <div className="flex flex-col gap-1">
-                                <label className="text-foreground text-sm font-medium">Filtrar por mês</label>
+                        <div className="flex w-full min-w-0 flex-col gap-3 md:w-auto md:flex-row md:items-end">
+                            <div className="flex w-full min-w-0 flex-col gap-1 md:w-auto">
+                                <label className="text-foreground text-sm font-medium">
+                                    Filtrar por mês
+                                </label>
 
                                 <input
                                     type="month"
                                     value={filtros.mes}
                                     onChange={(event) => alterarMes(event.target.value)}
-                                    className="border-input bg-background text-foreground focus:border-primary focus:ring-primary/20 rounded-lg border px-3 py-2 text-sm transition outline-none focus:ring-2"
+                                    className="border-input bg-background text-foreground focus:border-primary focus:ring-primary/20 box-border block w-full min-w-0 max-w-full rounded-lg border px-3 py-2 text-sm transition outline-none focus:ring-2 md:w-auto"
                                 />
                             </div>
 
                             <Link
                                 href="/movimentacoes"
-                                className="bg-primary text-primary-foreground rounded-lg px-4 py-2 text-center text-sm font-semibold shadow-sm transition hover:opacity-90"
+                                className="bg-primary text-primary-foreground w-full rounded-lg px-4 py-2 text-center text-sm font-semibold shadow-sm transition hover:opacity-90 md:w-auto"
                             >
                                 Ver movimentações
                             </Link>
@@ -627,41 +653,92 @@ export default function Dashboard({
                     </div>
                 </div>
 
-                <div className="grid gap-4 md:grid-cols-3">
-                    <div className="border-border bg-card rounded-2xl border p-5 shadow-sm">
-                        <div className="flex items-center justify-between">
-                            <p className="text-muted-foreground text-sm font-medium">Entradas do mês</p>
+                <div className="grid w-full min-w-0 max-w-full grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                    <div className="border-border bg-card box-border w-full min-w-0 max-w-full overflow-hidden rounded-2xl border p-4 shadow-sm sm:p-5">
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                            <p className="text-muted-foreground text-sm font-medium">
+                                Saldo anterior
+                            </p>
+
+                            <span className="bg-muted text-muted-foreground rounded-full px-2.5 py-1 text-xs font-semibold">
+                                Acumulado
+                            </span>
+                        </div>
+
+                        <h2 className={classeValorSaldo(resumo.saldo_anterior)}>
+                            {formatarMoeda(resumo.saldo_anterior)}
+                        </h2>
+
+                        <p className="text-muted-foreground mt-2 text-xs">
+                            Valor acumulado até o mês anterior.
+                        </p>
+                    </div>
+
+                    <div className="border-border bg-card min-w-0 overflow-hidden rounded-2xl border p-4 shadow-sm sm:p-5">
+                        <div className="flex items-center justify-between gap-3">
+                            <p className="text-muted-foreground text-sm font-medium">
+                                Entradas do mês
+                            </p>
 
                             <span className="rounded-full bg-green-100 px-2.5 py-1 text-xs font-semibold text-green-700 dark:bg-green-950 dark:text-green-300">
                                 Entrada
                             </span>
                         </div>
 
-                        <h2 className="mt-3 text-2xl font-bold text-green-600">{formatarMoeda(resumo.entradas)}</h2>
+                        <h2 className="mt-3 text-2xl font-bold text-green-600">
+                            {formatarMoeda(resumo.entradas)}
+                        </h2>
+
+                        <p className="text-muted-foreground mt-2 text-xs">
+                            Movimentações de entrada do mês selecionado.
+                        </p>
                     </div>
 
-                    <div className="border-border bg-card rounded-2xl border p-5 shadow-sm">
-                        <div className="flex items-center justify-between">
-                            <p className="text-muted-foreground text-sm font-medium">Despesas do mês</p>
+                    <div className="border-border bg-card min-w-0 overflow-hidden rounded-2xl border p-4 shadow-sm sm:p-5">
+                        <div className="flex items-center justify-between gap-3">
+                            <p className="text-muted-foreground text-sm font-medium">
+                                Despesas do mês
+                            </p>
 
                             <span className="rounded-full bg-red-100 px-2.5 py-1 text-xs font-semibold text-red-700 dark:bg-red-950 dark:text-red-300">
                                 Saída
                             </span>
                         </div>
 
-                        <h2 className="mt-3 text-2xl font-bold text-red-600">{formatarMoeda(resumo.despesas)}</h2>
+                        <h2 className="mt-3 text-2xl font-bold text-red-600">
+                            {formatarMoeda(resumo.despesas)}
+                        </h2>
+
+                        <p className="text-muted-foreground mt-2 text-xs">
+                            Movimentações de despesa do mês selecionado.
+                        </p>
                     </div>
 
-                    <div className="border-border bg-card rounded-2xl border p-5 shadow-sm">
-                        <div className="flex items-center justify-between">
-                            <p className="text-muted-foreground text-sm font-medium">Saldo atual</p>
+                    <div className="border-border bg-card min-w-0 overflow-hidden rounded-2xl border p-4 shadow-sm sm:p-5">
+                        <div className="flex items-center justify-between gap-3">
+                            <p className="text-muted-foreground text-sm font-medium">
+                                Saldo final do mês
+                            </p>
 
                             <span className="rounded-full bg-blue-100 px-2.5 py-1 text-xs font-semibold text-blue-700 dark:bg-blue-950 dark:text-blue-300">
                                 Saldo
                             </span>
                         </div>
 
-                        <h2 className="text-primary mt-3 text-2xl font-bold">{formatarMoeda(resumo.saldo)}</h2>
+                        <h2 className={classeValorSaldo(resumo.saldo)}>
+                            {formatarMoeda(resumo.saldo)}
+                        </h2>
+
+                        <p className="text-muted-foreground mt-2 text-xs">
+                            Disponível antes das despesas:{' '}
+                            <span className="text-foreground ml-1 font-semibold">
+                                {formatarMoeda(resumo.total_disponivel)}
+                            </span>
+                        </p>
+
+                        <p className="text-muted-foreground mt-1 text-xs">
+                            Saldo anterior + entradas − despesas.
+                        </p>
                     </div>
                 </div>
 
@@ -692,24 +769,24 @@ export default function Dashboard({
                         <p className="text-muted-foreground text-sm">Cadastre entradas e despesas para acompanhar o caixa.</p>
                     </div>
 
-                    <div className="flex gap-3">
+                    <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
                         <Link
                             href="/movimentacoes/create?tipo=entrada"
-                            className="rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-green-700"
+                            className="w-full rounded-lg bg-green-600 px-4 py-2 text-center text-sm font-semibold text-white shadow-sm transition hover:bg-green-700 sm:w-auto"
                         >
                             Nova Entrada
                         </Link>
 
                         <Link
                             href="/movimentacoes/create?tipo=despesa"
-                            className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-red-700"
+                            className="w-full rounded-lg bg-red-600 px-4 py-2 text-center text-sm font-semibold text-white shadow-sm transition hover:bg-red-700 sm:w-auto"
                         >
                             Nova Despesa
                         </Link>
                     </div>
                 </div>
 
-                <div className="border-border bg-card overflow-hidden rounded-2xl border shadow-sm">
+                <div className="border-border bg-card w-full min-w-0 max-w-full overflow-hidden rounded-2xl border shadow-sm">
                     <div className="border-border border-b p-5">
                         <h2 className="text-foreground text-lg font-bold">Últimas movimentações</h2>
                     </div>
@@ -783,8 +860,8 @@ export default function Dashboard({
                     )}
                 </div>
 
-                <div className="border-border bg-card overflow-hidden rounded-2xl border shadow-sm">
-                    <div className="border-border flex flex-col gap-5 border-b p-5 lg:flex-row lg:items-start lg:justify-between">
+                <div className="border-border bg-card box-border w-full min-w-0 max-w-full overflow-hidden rounded-2xl border shadow-sm">
+                    <div className="border-border flex min-w-0 flex-col gap-5 border-b p-4 sm:p-5 lg:flex-row lg:items-start lg:justify-between">
                         <div>
                             <p className="text-primary text-sm font-semibold">Análise financeira</p>
 
@@ -794,7 +871,7 @@ export default function Dashboard({
                         </div>
 
                         <div className="flex w-full flex-col gap-3 lg:w-auto">
-                            <div className="bg-muted inline-flex w-full rounded-xl p-1 lg:w-auto">
+                            <div className="bg-muted grid w-full min-w-0 grid-cols-3 rounded-xl p-1 lg:inline-flex lg:w-auto">
                                 {tiposGrafico.map((tipo) => (
                                     <button
                                         key={tipo.valor}
@@ -811,7 +888,7 @@ export default function Dashboard({
                                 ))}
                             </div>
 
-                            <div className="bg-muted inline-flex w-full rounded-xl p-1 lg:w-auto">
+                            <div className="bg-muted grid w-full min-w-0 grid-cols-3 rounded-xl p-1 lg:inline-flex lg:w-auto">
                                 {periodosGrafico.map((periodo) => (
                                     <button
                                         key={periodo.valor}
@@ -902,7 +979,7 @@ export default function Dashboard({
                         </div>
                     )}
 
-                    <div className="h-80 px-2 pb-5 sm:px-5">
+                    <div className="h-80 w-full min-w-0 max-w-full overflow-hidden px-2 pb-5 sm:px-5">
                         <ResponsiveContainer width="100%" height="100%">
                             <LineChart
                                 data={graficoGastos.pontos}
