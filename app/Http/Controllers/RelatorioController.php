@@ -3,8 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\Movimentacao;
-use App\Services\GerarDespesasFixasMensais;
-use App\Services\GerarEntradasFixasMensais;
+use App\Services\CalcularSaldoAcumulado;
+use App\Services\GerarMovimentacoesFixasAteCompetencia;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
@@ -17,8 +17,8 @@ class RelatorioController extends Controller
 {
     public function index(
         Request $request,
-        GerarDespesasFixasMensais $geradorDespesasFixas,
-        GerarEntradasFixasMensais $geradorEntradasFixas
+        GerarMovimentacoesFixasAteCompetencia $geradorHistoricoFixo,
+        CalcularSaldoAcumulado $calculadorSaldo
     ): Response {
         $user = $request->user();
 
@@ -80,27 +80,16 @@ class RelatorioController extends Controller
 
         /*
         |--------------------------------------------------------------------------
-        | GERAR MOVIMENTAÇÕES FIXAS
+        | GARANTIR HISTÓRICO DAS MOVIMENTAÇÕES FIXAS
         |--------------------------------------------------------------------------
-        | Garante que despesas e entradas fixas estejam lançadas nos meses
-        | abrangidos pelo relatório antes de calcular os resultados.
+        | Gera as competências desde a primeira recorrência do usuário até
+        | o final do período consultado. Isso permite que o saldo inicial
+        | considere corretamente as competências anteriores ao relatório.
         */
-        $competencia = $inicio->copy()->startOfMonth();
-        $ultimaCompetencia = $fim->copy()->startOfMonth();
-
-        while ($competencia->lte($ultimaCompetencia)) {
-            $geradorDespesasFixas->gerarParaMes(
-                $competencia->copy(),
-                (int) $user->id
-            );
-
-            $geradorEntradasFixas->gerarParaMes(
-                $competencia->copy(),
-                (int) $user->id
-            );
-
-            $competencia->addMonth();
-        }
+        $geradorHistoricoFixo->gerar(
+            (int) $user->id,
+            $fim
+        );
 
         $categoriaSelecionada = trim(
             (string) $request->input('categoria', '')
@@ -108,6 +97,38 @@ class RelatorioController extends Controller
 
         $formaPagamentoSelecionada = trim(
             (string) $request->input('forma_pagamento', '')
+        );
+
+        /*
+        |--------------------------------------------------------------------------
+        | SALDO ACUMULADO DO RELATÓRIO
+        |--------------------------------------------------------------------------
+        | O saldo inicial considera tudo que ocorreu antes da data inicial.
+        | Os mesmos filtros analíticos do relatório são aplicados ao histórico
+        | e ao período, mantendo a equação dos valores exibidos.
+        */
+        $aplicarFiltrosSaldo = function (
+            Builder $consulta
+        ) use (
+            $tipo,
+            $status,
+            $categoriaSelecionada,
+            $formaPagamentoSelecionada
+        ): void {
+            $this->aplicarFiltros(
+                $consulta,
+                $tipo,
+                $status,
+                $categoriaSelecionada,
+                $formaPagamentoSelecionada
+            );
+        };
+
+        $saldoAcumulado = $calculadorSaldo->calcular(
+            (int) $user->id,
+            $inicio,
+            $fim,
+            $aplicarFiltrosSaldo
         );
 
         $consultaBase = Movimentacao::query()
@@ -159,7 +180,8 @@ class RelatorioController extends Controller
             ]);
 
         $resumo = $this->montarResumo(
-            $movimentacoesDoPeriodo
+            $movimentacoesDoPeriodo,
+            $saldoAcumulado
         );
 
         $evolucao = $this->montarEvolucao(
@@ -368,21 +390,25 @@ class RelatorioController extends Controller
 
     /**
      * @param Collection<int, Movimentacao> $movimentacoes
+     * @param array{
+     *     saldo_inicial: float,
+     *     entradas: float,
+     *     despesas: float,
+     *     total_disponivel: float,
+     *     saldo_final: float
+     * } $saldoAcumulado
      */
     private function montarResumo(
-        Collection $movimentacoes
+        Collection $movimentacoes,
+        array $saldoAcumulado
     ): array {
         $totalEntradas = round(
-            (float) $movimentacoes
-                ->where('tipo', 'entrada')
-                ->sum('valor'),
+            (float) $saldoAcumulado['entradas'],
             2
         );
 
         $totalDespesas = round(
-            (float) $movimentacoes
-                ->where('tipo', 'despesa')
-                ->sum('valor'),
+            (float) $saldoAcumulado['despesas'],
             2
         );
 
@@ -403,15 +429,28 @@ class RelatorioController extends Controller
         );
 
         return [
-            'entradas' => $totalEntradas,
-            'despesas' => $totalDespesas,
-            'saldo' => round(
-                $totalEntradas - $totalDespesas,
+            'saldo_inicial' => round(
+                (float) $saldoAcumulado['saldo_inicial'],
                 2
             ),
+
+            'entradas' => $totalEntradas,
+            'despesas' => $totalDespesas,
+
+            'total_disponivel' => round(
+                (float) $saldoAcumulado['total_disponivel'],
+                2
+            ),
+
+            'saldo' => round(
+                (float) $saldoAcumulado['saldo_final'],
+                2
+            ),
+
             'quantidade' => $movimentacoes->count(),
             'concluidas' => $concluidas->count(),
             'pendentes' => $pendentes->count(),
+
             'valor_pendente' => round(
                 (float) $pendentes->sum('valor'),
                 2

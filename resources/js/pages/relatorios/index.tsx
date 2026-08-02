@@ -11,8 +11,10 @@ type StatusFiltro = 'todos' | 'concluidos' | 'pendentes';
 type PeriodoFiltro = 'semana' | 'mes' | 'ano' | 'personalizado';
 
 type Resumo = {
+    saldo_inicial: string | number;
     entradas: string | number;
     despesas: string | number;
+    total_disponivel: string | number;
     saldo: string | number;
     quantidade: number;
     concluidas: number;
@@ -154,6 +156,20 @@ function formatarMoeda(valor: string | number) {
         style: 'currency',
         currency: 'BRL',
     });
+}
+
+function classeValorSaldo(valor: string | number) {
+    const numero = Number(valor || 0);
+
+    if (numero > 0) {
+        return 'mt-3 text-2xl font-bold text-green-600';
+    }
+
+    if (numero < 0) {
+        return 'mt-3 text-2xl font-bold text-red-600';
+    }
+
+    return 'text-foreground mt-3 text-2xl font-bold';
 }
 
 function formatarValorCompacto(valor: string | number) {
@@ -607,49 +623,109 @@ export default function RelatoriosIndex({ resumo, graficos, movimentacoes, filtr
 
                 <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                     <div className="border-border bg-card rounded-2xl border p-5 shadow-sm">
-                        <p className="text-muted-foreground text-sm font-medium">Total de entradas</p>
+                        <p className="text-muted-foreground text-sm font-medium">
+                            Saldo inicial
+                        </p>
 
-                        <p className="mt-3 text-2xl font-bold text-green-600">{formatarMoeda(resumo.entradas)}</p>
-                    </div>
+                        <p className={classeValorSaldo(resumo.saldo_inicial)}>
+                            {formatarMoeda(resumo.saldo_inicial)}
+                        </p>
 
-                    <div className="border-border bg-card rounded-2xl border p-5 shadow-sm">
-                        <p className="text-muted-foreground text-sm font-medium">Total de despesas</p>
-
-                        <p className="mt-3 text-2xl font-bold text-red-600">{formatarMoeda(resumo.despesas)}</p>
-                    </div>
-
-                    <div className="border-border bg-card rounded-2xl border p-5 shadow-sm">
-                        <p className="text-muted-foreground text-sm font-medium">Saldo do período</p>
-
-                        <p className={Number(resumo.saldo) >= 0 ? 'mt-3 text-2xl font-bold text-green-600' : 'mt-3 text-2xl font-bold text-red-600'}>
-                            {formatarMoeda(resumo.saldo)}
+                        <p className="text-muted-foreground mt-2 text-xs">
+                            Acumulado antes de{' '}
+                            {formatarData(periodoSelecionado.inicio)}.
                         </p>
                     </div>
 
                     <div className="border-border bg-card rounded-2xl border p-5 shadow-sm">
-                        <p className="text-muted-foreground text-sm font-medium">Valor pendente</p>
+                        <p className="text-muted-foreground text-sm font-medium">
+                            Entradas do período
+                        </p>
 
-                        <p className="mt-3 text-2xl font-bold text-amber-600">{formatarMoeda(resumo.valor_pendente)}</p>
+                        <p className="mt-3 text-2xl font-bold text-green-600">
+                            {formatarMoeda(resumo.entradas)}
+                        </p>
+
+                        <p className="text-muted-foreground mt-2 text-xs">
+                            Somente movimentações reais do período.
+                        </p>
+                    </div>
+
+                    <div className="border-border bg-card rounded-2xl border p-5 shadow-sm">
+                        <p className="text-muted-foreground text-sm font-medium">
+                            Despesas do período
+                        </p>
+
+                        <p className="mt-3 text-2xl font-bold text-red-600">
+                            {formatarMoeda(resumo.despesas)}
+                        </p>
+
+                        <p className="text-muted-foreground mt-2 text-xs">
+                            Somente movimentações reais do período.
+                        </p>
+                    </div>
+
+                    <div className="border-border bg-card rounded-2xl border p-5 shadow-sm">
+                        <p className="text-muted-foreground text-sm font-medium">
+                            Saldo final
+                        </p>
+
+                        <p className={classeValorSaldo(resumo.saldo)}>
+                            {formatarMoeda(resumo.saldo)}
+                        </p>
+
+                        <p className="text-muted-foreground mt-2 text-xs">
+                            Disponível antes das despesas:
+                            <span className="text-foreground ml-1 font-semibold">
+                                {formatarMoeda(resumo.total_disponivel)}
+                            </span>
+                        </p>
+
+                        <p className="text-muted-foreground mt-1 text-xs">
+                            Saldo inicial + entradas − despesas.
+                        </p>
                     </div>
                 </div>
 
-                <div className="grid gap-4 md:grid-cols-3">
+                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                     <div className="border-border bg-card rounded-2xl border p-5 shadow-sm">
-                        <p className="text-muted-foreground text-sm font-medium">Movimentações encontradas</p>
+                        <p className="text-muted-foreground text-sm font-medium">
+                            Valor pendente
+                        </p>
 
-                        <p className="text-foreground mt-3 text-2xl font-bold">{resumo.quantidade}</p>
+                        <p className="mt-3 text-2xl font-bold text-amber-600">
+                            {formatarMoeda(resumo.valor_pendente)}
+                        </p>
                     </div>
 
                     <div className="border-border bg-card rounded-2xl border p-5 shadow-sm">
-                        <p className="text-muted-foreground text-sm font-medium">Concluídas</p>
+                        <p className="text-muted-foreground text-sm font-medium">
+                            Movimentações encontradas
+                        </p>
 
-                        <p className="mt-3 text-2xl font-bold text-green-600">{resumo.concluidas}</p>
+                        <p className="text-foreground mt-3 text-2xl font-bold">
+                            {resumo.quantidade}
+                        </p>
                     </div>
 
                     <div className="border-border bg-card rounded-2xl border p-5 shadow-sm">
-                        <p className="text-muted-foreground text-sm font-medium">Pendentes</p>
+                        <p className="text-muted-foreground text-sm font-medium">
+                            Concluídas
+                        </p>
 
-                        <p className="mt-3 text-2xl font-bold text-amber-600">{resumo.pendentes}</p>
+                        <p className="mt-3 text-2xl font-bold text-green-600">
+                            {resumo.concluidas}
+                        </p>
+                    </div>
+
+                    <div className="border-border bg-card rounded-2xl border p-5 shadow-sm">
+                        <p className="text-muted-foreground text-sm font-medium">
+                            Pendentes
+                        </p>
+
+                        <p className="mt-3 text-2xl font-bold text-amber-600">
+                            {resumo.pendentes}
+                        </p>
                     </div>
                 </div>
 
