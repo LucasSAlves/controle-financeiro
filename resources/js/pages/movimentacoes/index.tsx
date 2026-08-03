@@ -221,8 +221,8 @@ export default function MovimentacoesIndex({
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Movimentações" />
 
-            <div className="flex flex-col gap-6 p-4">
-                <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div className="box-border flex w-full min-w-0 max-w-full flex-col gap-4 overflow-x-hidden p-3 sm:gap-6 sm:p-4">
+                <div className="flex w-full min-w-0 max-w-full flex-col gap-4 md:flex-row md:items-center md:justify-between">
                     <div>
                         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
                             Movimentações financeiras
@@ -233,8 +233,8 @@ export default function MovimentacoesIndex({
                         </p>
                     </div>
 
-                    <div className="grid gap-3 md:grid-cols-3">
-                        <div className="flex flex-col gap-1">
+                    <div className="grid w-full min-w-0 max-w-full grid-cols-1 gap-3 md:grid-cols-3">
+                        <div className="flex min-w-0 flex-col gap-1">
                             <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
                                 Filtrar por mês
                             </label>
@@ -245,11 +245,11 @@ export default function MovimentacoesIndex({
                                 onChange={(event) =>
                                     aplicarFiltros({ mes: event.target.value })
                                 }
-                                className="rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                                className="box-border block w-full min-w-0 max-w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-950 dark:text-white"
                             />
                         </div>
 
-                        <div className="flex flex-col gap-1">
+                        <div className="flex min-w-0 flex-col gap-1">
                             <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
                                 Tipo
                             </label>
@@ -259,7 +259,7 @@ export default function MovimentacoesIndex({
                                 onChange={(event) =>
                                     aplicarFiltros({ tipo: event.target.value })
                                 }
-                                className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                                className="box-border block w-full min-w-0 max-w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-950 dark:text-white"
                             >
                                 <option value="todos">Todos</option>
                                 <option value="entrada">Entradas</option>
@@ -267,7 +267,7 @@ export default function MovimentacoesIndex({
                             </select>
                         </div>
 
-                        <div className="flex flex-col gap-1">
+                        <div className="flex min-w-0 flex-col gap-1">
                             <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
                                 Status
                             </label>
@@ -277,7 +277,7 @@ export default function MovimentacoesIndex({
                                 onChange={(event) =>
                                     aplicarFiltros({ status: event.target.value })
                                 }
-                                className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                                className="box-border block w-full min-w-0 max-w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-950 dark:text-white"
                             >
                                 <option value="todos">Todos</option>
                                 <option value="pendente">Pendentes</option>
@@ -287,17 +287,17 @@ export default function MovimentacoesIndex({
                         </div>
                     </div>
 
-                    <div className="flex gap-3">
+                    <div className="grid w-full min-w-0 grid-cols-2 gap-3 md:flex md:w-auto">
                         <Link
                             href="/movimentacoes/create?tipo=entrada"
-                            className="rounded-lg bg-green-600 px-4 py-2 text-center text-sm font-medium text-white hover:bg-green-700"
+                            className="w-full rounded-lg bg-green-600 px-4 py-2 text-center text-sm font-medium text-white hover:bg-green-700"
                         >
                             Nova Entrada
                         </Link>
 
                         <Link
                             href="/movimentacoes/create?tipo=despesa"
-                            className="rounded-lg bg-red-600 px-4 py-2 text-center text-sm font-medium text-white hover:bg-red-700"
+                            className="w-full rounded-lg bg-red-600 px-4 py-2 text-center text-sm font-medium text-white hover:bg-red-700"
                         >
                             Nova Despesa
                         </Link>
@@ -346,7 +346,7 @@ export default function MovimentacoesIndex({
                     </div>
                 </div>
 
-                <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-900">
+                <div className="box-border w-full min-w-0 max-w-full overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-900">
                     <div className="border-b border-gray-200 p-5 dark:border-gray-700">
                         <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
                             Lançamentos cadastrados
@@ -367,8 +367,8 @@ export default function MovimentacoesIndex({
                             </Link>
                         </div>
                     ) : (
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-left text-sm">
+                        <div className="w-full min-w-0 max-w-full overflow-x-auto overscroll-x-contain">
+                            <table className="w-full min-w-[900px] text-left text-sm">
                                 <thead className="bg-gray-50 text-gray-600 dark:bg-gray-800 dark:text-gray-300">
                                     <tr>
                                         <th className="px-5 py-3">Data</th>
