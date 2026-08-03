@@ -2,8 +2,13 @@ import { useCallback } from 'react';
 
 export function useMobileNavigation() {
     const cleanup = useCallback(() => {
-        // Remove pointer-events style from body...
-        document.body.style.removeProperty('pointer-events');
+        if (typeof document !== 'undefined') {
+            document.body.style.removeProperty('pointer-events');
+        }
+
+        if (typeof window !== 'undefined') {
+            window.dispatchEvent(new Event('mobile-navigation'));
+        }
     }, []);
 
     return cleanup;

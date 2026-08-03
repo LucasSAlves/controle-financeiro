@@ -20,6 +20,7 @@ import {
     WalletCards,
 } from 'lucide-react';
 import AppLogo from './app-logo';
+import { useMobileNavigation } from '@/hooks/use-mobile-navigation';
 
 const mainNavItems: NavItem[] = [
     {
@@ -59,6 +60,7 @@ const adminNavItems: NavItem[] = [
 
 export function AppSidebar() {
     const { auth } = usePage<SharedData>().props;
+    const fecharMenuMobile = useMobileNavigation();
 
     const podeAcessarAdministracao =
         auth.user.is_admin && auth.user.is_active;
@@ -69,7 +71,11 @@ export function AppSidebar() {
                 <SidebarMenu>
                     <SidebarMenuItem>
                         <SidebarMenuButton size="lg" asChild>
-                            <Link href="/dashboard" prefetch>
+                            <Link
+                                href="/dashboard"
+                                prefetch
+                                onClick={fecharMenuMobile}
+                            >
                                 <AppLogo />
                             </Link>
                         </SidebarMenuButton>
