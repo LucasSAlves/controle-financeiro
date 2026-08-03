@@ -7,6 +7,7 @@ import {
 } from '@/components/ui/sidebar';
 import { type NavItem } from '@/types';
 import { Link, usePage } from '@inertiajs/react';
+import { useMobileNavigation } from '@/hooks/use-mobile-navigation';
 
 type NavMainProps = {
     items?: NavItem[];
@@ -18,6 +19,7 @@ export function NavMain({
     label = 'Menu',
 }: NavMainProps) {
     const page = usePage();
+    const fecharMenuMobile = useMobileNavigation();
 
     return (
         <SidebarGroup className="px-2 py-0">
@@ -34,8 +36,13 @@ export function NavMain({
                             <SidebarMenuButton
                                 asChild
                                 isActive={isActive}
+                                className="min-h-11 md:min-h-8"
                             >
-                                <Link href={item.url} prefetch>
+                                <Link
+                                    href={item.url}
+                                    prefetch
+                                    onClick={fecharMenuMobile}
+                                >
                                     {item.icon && <item.icon />}
                                     <span>{item.title}</span>
                                 </Link>
