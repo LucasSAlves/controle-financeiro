@@ -94,10 +94,60 @@ class DashboardController extends Controller
                         $movimentacao->forma_pagamento,
                     'status' => $movimentacao->status,
                 ];
-            })
-            ->values();
+                })
+                    ->values();
 
-        return response()->json([
+                $hoje = Carbon::today();
+
+                $mapearDespesa = function (
+                    Movimentacao $movimentacao
+                ): array {
+                    return [
+                        'id' => $movimentacao->id,
+                        'descricao' => $movimentacao->descricao,
+                        'valor' => (float) $movimentacao->valor,
+                        'data' => $movimentacao->data->format('Y-m-d'),
+                        'categoria' => $movimentacao->categoria,
+                        'forma_pagamento' =>
+                            $movimentacao->forma_pagamento,
+                    ];
+                };
+
+                $consultaAvisos = Movimentacao::query()
+                    ->where('user_id', $user->id)
+                    ->where('tipo', 'despesa')
+                    ->where('status', 'pendente');
+
+                $despesasVencidas = (clone $consultaAvisos)
+                    ->whereDate('data', '<', $hoje->toDateString())
+                    ->orderBy('data')
+                    ->limit(10)
+                    ->get()
+                    ->map($mapearDespesa)
+                    ->values();
+
+                $despesasVencemHoje = (clone $consultaAvisos)
+                    ->whereDate('data', $hoje->toDateString())
+                    ->orderBy('data')
+                    ->limit(10)
+                    ->get()
+                    ->map($mapearDespesa)
+                    ->values();
+
+                $despesasProximosDias = (clone $consultaAvisos)
+                    ->whereDate('data', '>', $hoje->toDateString())
+                    ->whereDate(
+                        'data',
+                        '<=',
+                        $hoje->copy()->addDays(7)->toDateString()
+                    )
+                    ->orderBy('data')
+                    ->limit(10)
+                    ->get()
+                    ->map($mapearDespesa)
+                    ->values();
+
+                return response()->json([
             'filtros' => [
                 'mes' => $mesSelecionado,
             ],
@@ -118,6 +168,11 @@ class DashboardController extends Controller
                     $saldoAcumulado['saldo_final'],
                 ],
                 'ultimas_movimentacoes' => $ultimasMovimentacoes,
+                'avisos_vencimento' => [
+                    'vencidas' => $despesasVencidas,
+                    'vencem_hoje' => $despesasVencemHoje,
+                    'proximos_dias' => $despesasProximosDias,
+                ],
                 ]);
     }
 }

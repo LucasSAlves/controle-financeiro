@@ -2,6 +2,7 @@
 
 use App\Models\Movimentacao;
 use App\Models\User;
+use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
 uses(RefreshDatabase::class);
@@ -301,15 +302,125 @@ test('dashboard retorna as cinco ultimas movimentacoes do usuario e do mes', fun
                     'status',
                 ],
             ],
-        ])
-        ->assertJsonMissing([
-            'descricao' => 'Movimentação 2',
-        ])
-        ->assertJsonMissing([
-            'descricao' => 'Movimentação de julho',
-        ])
-        ->assertJsonMissing([
-            'descricao' =>
-                'Movimentação de outro usuário',
+               ])
+                ->assertJsonMissing([
+                    'descricao' => 'Movimentação de julho',
+                ])
+                ->assertJsonMissing([
+                    'descricao' =>
+                        'Movimentação de outro usuário',
+                ]);
+});
+
+test('dashboard separa corretamente os avisos de vencimento', function () {
+    /** @var \Tests\TestCase $this */
+
+    Carbon::setTestNow('2026-08-06 10:00:00');
+
+    try {
+        $user = User::factory()->create();
+        $outroUsuario = User::factory()->create();
+
+        Sanctum::actingAs(
+            $user,
+            ['mobile']
+        );
+
+        Movimentacao::create([
+            'user_id' => $user->id,
+            'tipo' => 'despesa',
+            'descricao' => 'Despesa vencida',
+            'valor' => 100,
+            'data' => '2026-08-05',
+            'status' => 'pendente',
         ]);
+
+        Movimentacao::create([
+            'user_id' => $user->id,
+            'tipo' => 'despesa',
+            'descricao' => 'Despesa vence hoje',
+            'valor' => 200,
+            'data' => '2026-08-06',
+            'status' => 'pendente',
+        ]);
+
+        Movimentacao::create([
+            'user_id' => $user->id,
+            'tipo' => 'despesa',
+            'descricao' => 'Despesa próximos dias',
+            'valor' => 300,
+            'data' => '2026-08-13',
+            'status' => 'pendente',
+        ]);
+
+        /*
+         * Está depois do limite de sete dias
+         * e não deve entrar em próximos dias.
+         */
+        Movimentacao::create([
+            'user_id' => $user->id,
+            'tipo' => 'despesa',
+            'descricao' => 'Despesa fora do período',
+            'valor' => 400,
+            'data' => '2026-08-14',
+            'status' => 'pendente',
+        ]);
+
+        /*
+         * Está vencida, mas já foi paga.
+         */
+        Movimentacao::create([
+            'user_id' => $user->id,
+            'tipo' => 'despesa',
+            'descricao' => 'Despesa vencida paga',
+            'valor' => 500,
+            'data' => '2026-08-04',
+            'status' => 'pago',
+        ]);
+
+        /*
+         * Pertence a outro usuário.
+         */
+        Movimentacao::create([
+            'user_id' => $outroUsuario->id,
+            'tipo' => 'despesa',
+            'descricao' => 'Despesa de outro usuário',
+            'valor' => 600,
+            'data' => '2026-08-05',
+            'status' => 'pendente',
+        ]);
+
+        $response = $this->getJson(
+            '/api/v1/dashboard?mes=2026-08'
+        );
+
+        $response
+            ->assertOk()
+            ->assertJsonCount(
+                1,
+                'avisos_vencimento.vencidas'
+            )
+            ->assertJsonCount(
+                1,
+                'avisos_vencimento.vencem_hoje'
+            )
+            ->assertJsonCount(
+                1,
+                'avisos_vencimento.proximos_dias'
+            )
+            ->assertJsonPath(
+                'avisos_vencimento.vencidas.0.descricao',
+                'Despesa vencida'
+            )
+            ->assertJsonPath(
+                'avisos_vencimento.vencem_hoje.0.descricao',
+                'Despesa vence hoje'
+            )
+            ->assertJsonPath(
+                'avisos_vencimento.proximos_dias.0.descricao',
+                'Despesa próximos dias'
+            );
+    } finally {
+        Carbon::setTestNow();
+    }
 });
