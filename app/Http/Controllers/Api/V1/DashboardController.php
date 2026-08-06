@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Models\Movimentacao;
 use App\Services\CalcularSaldoAcumulado;
 use App\Services\GerarMovimentacoesFixasAteCompetencia;
 use Carbon\Carbon;
@@ -71,6 +72,31 @@ class DashboardController extends Controller
             $fimDoMes
         );
 
+        $ultimasMovimentacoes = Movimentacao::query()
+            ->where('user_id', $user->id)
+            ->whereBetween('data', [
+                $inicioDoMes->toDateString(),
+                $fimDoMes->toDateString(),
+            ])
+            ->orderByDesc('data')
+            ->orderByDesc('id')
+            ->limit(5)
+            ->get()
+            ->map(function (Movimentacao $movimentacao): array {
+                return [
+                    'id' => $movimentacao->id,
+                    'tipo' => $movimentacao->tipo,
+                    'descricao' => $movimentacao->descricao,
+                    'valor' => (float) $movimentacao->valor,
+                    'data' => $movimentacao->data->format('Y-m-d'),
+                    'categoria' => $movimentacao->categoria,
+                    'forma_pagamento' =>
+                        $movimentacao->forma_pagamento,
+                    'status' => $movimentacao->status,
+                ];
+            })
+            ->values();
+
         return response()->json([
             'filtros' => [
                 'mes' => $mesSelecionado,
@@ -90,7 +116,8 @@ class DashboardController extends Controller
 
                 'saldo' =>
                     $saldoAcumulado['saldo_final'],
-            ],
-        ]);
+                ],
+                'ultimas_movimentacoes' => $ultimasMovimentacoes,
+                ]);
     }
 }
