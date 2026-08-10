@@ -19,6 +19,11 @@ Route::prefix('v1')->group(function () {
             MovimentacaoController::class,
             'index',
         ]);
+
+        Route::post('/movimentacoes', [
+            MovimentacaoController::class,
+            'store',
+        ]);
     });
     Route::prefix('auth')->group(function () {
         Route::post('/login', [AuthController::class, 'login'])

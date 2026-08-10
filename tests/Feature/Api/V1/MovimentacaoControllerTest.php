@@ -1,5 +1,7 @@
 <?php
 
+use App\Models\DespesaFixa;
+use App\Models\EntradaFixa;
 use App\Models\Movimentacao;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -345,4 +347,417 @@ test('usuario bloqueado nao pode consultar as movimentacoes', function () {
 
             'code' => 'ACCOUNT_BLOCKED',
         ]);
+});
+
+test('cadastro de movimentacao rejeita acesso sem autenticacao', function () {
+    /** @var \Tests\TestCase $this */
+
+    $response = $this->postJson(
+        '/api/v1/movimentacoes',
+        [
+            'tipo' => 'entrada',
+            'descricao' => 'Entrada teste',
+            'valor' => 1000,
+            'data' => '2026-08-10',
+            'status' => 'recebido',
+        ]
+    );
+
+    $response->assertUnauthorized();
+});
+
+test('usuario autenticado pode cadastrar entrada normal', function () {
+    /** @var \Tests\TestCase $this */
+
+    $user = User::factory()->create();
+
+    Sanctum::actingAs(
+        $user,
+        ['mobile']
+    );
+
+    $response = $this->postJson(
+        '/api/v1/movimentacoes',
+        [
+            'tipo' => 'entrada',
+            'descricao' => 'Salário aplicativo',
+            'valor' => 1500,
+            'data' => '2026-08-10',
+            'categoria' => 'Salário',
+            'forma_pagamento' => 'Pix',
+            'status' => 'pendente',
+            'observacao' => 'Entrada cadastrada pelo app',
+        ]
+    );
+
+    $response
+        ->assertCreated()
+        ->assertJsonPath(
+            'message',
+            'Movimentação cadastrada com sucesso.'
+        )
+        ->assertJsonPath(
+            'movimentacao.tipo',
+            'entrada'
+        )
+        ->assertJsonPath(
+            'movimentacao.status',
+            'recebido'
+        )
+        ->assertJsonPath(
+            'movimentacao.valor',
+            1500
+        )
+        ->assertJsonPath(
+            'movimentacao.forma_pagamento',
+            null
+        );
+
+    $this->assertDatabaseHas(
+        'movimentacoes',
+        [
+            'user_id' => $user->id,
+            'tipo' => 'entrada',
+            'descricao' => 'Salário aplicativo',
+            'valor' => 1500,
+            'status' => 'recebido',
+            'forma_pagamento' => null,
+            'parcelado' => false,
+            'parcela_fixa' => false,
+            'fixo_mensal' => false,
+        ]
+    );
+
+    $movimentacao = Movimentacao::where(
+        'user_id',
+        $user->id
+    )
+        ->where(
+            'descricao',
+            'Salário aplicativo'
+        )
+        ->firstOrFail();
+
+    expect(
+        $movimentacao->data->format('Y-m-d')
+    )->toBe('2026-08-10');
+});
+
+test('despesa normal paga recebe data de pagamento', function () {
+    /** @var \Tests\TestCase $this */
+
+    \Carbon\Carbon::setTestNow(
+        '2026-08-09 10:00:00'
+    );
+
+    try {
+        $user = User::factory()->create();
+
+        Sanctum::actingAs(
+            $user,
+            ['mobile']
+        );
+
+        $response = $this->postJson(
+            '/api/v1/movimentacoes',
+            [
+                'tipo' => 'despesa',
+                'descricao' => 'Conta paga pelo app',
+                'valor' => 250,
+                'data' => '2026-08-15',
+                'categoria' => 'Casa',
+                'forma_pagamento' => 'Pix',
+                'status' => 'pago',
+            ]
+        );
+
+        $response
+            ->assertCreated()
+            ->assertJsonPath(
+                'movimentacao.status',
+                'pago'
+            )
+            ->assertJsonPath(
+                'movimentacao.data_pagamento',
+                '2026-08-09'
+            );
+
+        $this->assertDatabaseHas(
+            'movimentacoes',
+            [
+                'user_id' => $user->id,
+                'descricao' => 'Conta paga pelo app',
+                'tipo' => 'despesa',
+                'valor' => 250,
+                'status' => 'pago',
+            ]
+        );
+
+        $movimentacao = Movimentacao::where(
+            'user_id',
+            $user->id
+        )
+            ->where(
+                'descricao',
+                'Conta paga pelo app'
+            )
+            ->firstOrFail();
+
+        expect(
+            $movimentacao->data_pagamento
+                ?->format('Y-m-d')
+        )->toBe('2026-08-09');
+    } finally {
+        \Carbon\Carbon::setTestNow();
+    }
+});
+
+test('usuario pode cadastrar despesa parcelada pela api', function () {
+    /** @var \Tests\TestCase $this */
+
+    $user = User::factory()->create();
+
+    Sanctum::actingAs(
+        $user,
+        ['mobile']
+    );
+
+    $response = $this->postJson(
+        '/api/v1/movimentacoes',
+        [
+            'tipo' => 'despesa',
+            'descricao' => 'Notebook',
+            'valor' => 300,
+            'data' => '2026-08-10',
+            'categoria' => 'Compras',
+            'forma_pagamento' => 'Cartão',
+            'status' => 'pendente',
+            'parcelado' => true,
+            'total_parcelas' => 3,
+        ]
+    );
+
+    $response
+        ->assertCreated()
+        ->assertJsonPath(
+            'message',
+            'Compra parcelada cadastrada com sucesso.'
+        )
+        ->assertJsonCount(
+            3,
+            'parcelas'
+        )
+        ->assertJsonPath(
+            'parcelas.0.descricao',
+            'Notebook - Parcela 1/3'
+        )
+        ->assertJsonPath(
+            'parcelas.0.valor',
+            300
+        )
+        ->assertJsonPath(
+            'parcelas.0.data',
+            '2026-08-10'
+        )
+        ->assertJsonPath(
+            'parcelas.1.data',
+            '2026-09-10'
+        )
+        ->assertJsonPath(
+            'parcelas.2.data',
+            '2026-10-10'
+        );
+
+    $this->assertDatabaseCount(
+        'movimentacoes',
+        3
+    );
+
+    $this->assertDatabaseHas(
+        'movimentacoes',
+        [
+            'user_id' => $user->id,
+            'descricao' => 'Notebook - Parcela 1/3',
+            'valor' => 300,
+            'parcela_atual' => 1,
+            'total_parcelas' => 3,
+            'parcelado' => true,
+            'status' => 'pendente',
+        ]
+    );
+
+    $this->assertDatabaseHas(
+        'movimentacoes',
+        [
+            'user_id' => $user->id,
+            'descricao' => 'Notebook - Parcela 3/3',
+            'valor' => 300,
+            'parcela_atual' => 3,
+            'total_parcelas' => 3,
+        ]
+    );
+
+    $terceiraParcela = Movimentacao::where(
+        'user_id',
+        $user->id
+    )
+        ->where(
+            'descricao',
+            'Notebook - Parcela 3/3'
+        )
+        ->firstOrFail();
+
+    expect(
+        $terceiraParcela->data->format('Y-m-d')
+    )->toBe('2026-10-10');
+});
+
+
+test('usuario pode cadastrar entrada fixa mensal pela api', function () {
+    /** @var \Tests\TestCase $this */
+
+    $user = User::factory()->create();
+
+    Sanctum::actingAs(
+        $user,
+        ['mobile']
+    );
+
+    $response = $this->postJson(
+        '/api/v1/movimentacoes',
+        [
+            'tipo' => 'entrada',
+            'descricao' => 'Salário fixo',
+            'valor' => 2000,
+            'data' => '2026-08-05',
+            'categoria' => 'Salário',
+            'status' => 'recebido',
+            'fixo_mensal' => true,
+        ]
+    );
+
+    $response
+        ->assertCreated()
+        ->assertJsonPath(
+            'message',
+            'Entrada fixa mensal cadastrada com sucesso.'
+        );
+
+    $entradaFixa = EntradaFixa::where(
+        'user_id',
+        $user->id
+    )
+        ->where(
+            'descricao',
+            'Salário fixo'
+        )
+        ->firstOrFail();
+
+    expect(
+        (float) $entradaFixa->valor
+    )->toBe(2000.0);
+
+    expect(
+        \Carbon\Carbon::parse(
+            $entradaFixa->data_inicio
+        )->format('Y-m-d')
+    )->toBe('2026-08-05');
+
+    $movimentacao = Movimentacao::where(
+        'user_id',
+        $user->id
+    )
+        ->where(
+            'entrada_fixa_id',
+            $entradaFixa->id
+        )
+        ->firstOrFail();
+
+    expect($movimentacao->tipo)
+        ->toBe('entrada');
+
+    expect($movimentacao->status)
+        ->toBe('recebido');
+
+    expect($movimentacao->fixo_mensal)
+        ->toBeTrue();
+
+    expect(
+        $movimentacao->data->format('Y-m-d')
+    )->toBe('2026-08-05');
+});
+
+test('usuario pode cadastrar despesa fixa mensal pela api', function () {
+    /** @var \Tests\TestCase $this */
+
+    $user = User::factory()->create();
+
+    Sanctum::actingAs(
+        $user,
+        ['mobile']
+    );
+
+    $response = $this->postJson(
+        '/api/v1/movimentacoes',
+        [
+            'tipo' => 'despesa',
+            'descricao' => 'Aluguel fixo',
+            'valor' => 900,
+            'data' => '2026-08-12',
+            'categoria' => 'Casa',
+            'forma_pagamento' => 'Pix',
+            'status' => 'pendente',
+            'parcela_fixa' => true,
+        ]
+    );
+
+    $response
+        ->assertCreated()
+        ->assertJsonPath(
+            'message',
+            'Despesa fixa mensal cadastrada com sucesso.'
+        );
+
+    $despesaFixa = DespesaFixa::where(
+        'user_id',
+        $user->id
+    )
+        ->where(
+            'descricao',
+            'Aluguel fixo'
+        )
+        ->firstOrFail();
+
+    expect(
+        (float) $despesaFixa->valor
+    )->toBe(900.0);
+
+    expect(
+        \Carbon\Carbon::parse(
+            $despesaFixa->data_inicio
+        )->format('Y-m-d')
+    )->toBe('2026-08-12');
+
+    $movimentacao = Movimentacao::where(
+        'user_id',
+        $user->id
+    )
+        ->where(
+            'despesa_fixa_id',
+            $despesaFixa->id
+        )
+        ->firstOrFail();
+
+    expect($movimentacao->tipo)
+        ->toBe('despesa');
+
+    expect($movimentacao->status)
+        ->toBe('pendente');
+
+    expect($movimentacao->parcela_fixa)
+        ->toBeTrue();
+
+    expect(
+        $movimentacao->data->format('Y-m-d')
+    )->toBe('2026-08-12');
 });

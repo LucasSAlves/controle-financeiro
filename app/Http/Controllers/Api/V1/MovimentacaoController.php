@@ -4,10 +4,17 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\MovimentacaoIndexRequest;
+use App\Http\Requests\Api\V1\MovimentacaoStoreRequest;
+use App\Models\DespesaFixa;
+use App\Models\EntradaFixa;
 use App\Models\Movimentacao;
+use App\Services\GerarDespesasFixasMensais;
+use App\Services\GerarEntradasFixasMensais;
 use App\Services\GerarMovimentacoesFixasAteCompetencia;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 class MovimentacaoController extends Controller
 {
@@ -175,5 +182,317 @@ class MovimentacaoController extends Controller
 
             'movimentacoes' => $movimentacoes,
         ]);
+    }
+        /**
+     * Cadastra uma nova movimentação pelo aplicativo.
+     */
+    public function store(
+        MovimentacaoStoreRequest $request,
+        GerarDespesasFixasMensais $geradorDespesasFixas,
+        GerarEntradasFixasMensais $geradorEntradasFixas
+    ): JsonResponse {
+        $user = $request->user();
+        $dados = $request->validated();
+
+        $parcelado = $request->boolean('parcelado');
+        $parcelaFixa = $request->boolean('parcela_fixa');
+        $fixoMensal = $request->boolean('fixo_mensal');
+
+        /*
+         * ENTRADA FIXA MENSAL
+         */
+        if (
+            $dados['tipo'] === 'entrada'
+            && $fixoMensal
+        ) {
+            DB::transaction(function () use (
+                $dados,
+                $user,
+                $geradorEntradasFixas
+            ): void {
+                $dataInicio = Carbon::parse(
+                    $dados['data']
+                );
+
+                EntradaFixa::create([
+                    'user_id' => $user->id,
+                    'descricao' => $dados['descricao'],
+                    'valor' => $dados['valor'],
+                    'data_inicio' =>
+                        $dataInicio->format('Y-m-d'),
+                    'dia_recebimento' =>
+                        $dataInicio->day,
+                    'categoria' =>
+                        $dados['categoria'] ?? null,
+                    'observacao' =>
+                        $dados['observacao'] ?? null,
+                    'ativa' => true,
+                    'encerrada_em' => null,
+                ]);
+
+                $geradorEntradasFixas->gerarParaMes(
+                    $dataInicio,
+                    (int) $user->id
+                );
+            });
+
+            return response()->json([
+                'message' =>
+                    'Entrada fixa mensal cadastrada com sucesso.',
+            ], 201);
+        }
+
+        /*
+         * DESPESA FIXA MENSAL
+         */
+        if (
+            $dados['tipo'] === 'despesa'
+            && $parcelaFixa
+        ) {
+            DB::transaction(function () use (
+                $dados,
+                $user,
+                $geradorDespesasFixas
+            ): void {
+                $dataInicio = Carbon::parse(
+                    $dados['data']
+                );
+
+                DespesaFixa::create([
+                    'user_id' => $user->id,
+                    'descricao' => $dados['descricao'],
+                    'valor' => $dados['valor'],
+                    'data_inicio' =>
+                        $dataInicio->format('Y-m-d'),
+                    'dia_vencimento' =>
+                        $dataInicio->day,
+                    'categoria' =>
+                        $dados['categoria'] ?? null,
+                    'forma_pagamento' =>
+                        $dados['forma_pagamento'] ?? null,
+                    'observacao' =>
+                        $dados['observacao'] ?? null,
+                    'ativa' => true,
+                    'encerrada_em' => null,
+                ]);
+
+                $geradorDespesasFixas->gerarParaMes(
+                    $dataInicio,
+                    (int) $user->id
+                );
+            });
+
+            return response()->json([
+                'message' =>
+                    'Despesa fixa mensal cadastrada com sucesso.',
+            ], 201);
+        }
+
+        /*
+         * MOVIMENTAÇÃO NORMAL
+         */
+        if (! $parcelado) {
+            $dataPagamento = null;
+
+            if (
+                $dados['tipo'] === 'despesa'
+                && $dados['status'] === 'pago'
+            ) {
+                $dataPagamento = now()->toDateString();
+            }
+
+            $movimentacao = Movimentacao::create([
+                'user_id' => $user->id,
+                'tipo' => $dados['tipo'],
+                'descricao' => $dados['descricao'],
+                'valor' => $dados['valor'],
+                'data' => $dados['data'],
+
+                'categoria' =>
+                    $dados['categoria'] ?? null,
+
+                'forma_pagamento' =>
+                    $dados['tipo'] === 'entrada'
+                        ? null
+                        : ($dados['forma_pagamento'] ?? null),
+
+                'status' =>
+                    $dados['tipo'] === 'entrada'
+                        ? 'recebido'
+                        : $dados['status'],
+
+                'observacao' =>
+                    $dados['observacao'] ?? null,
+
+                'parcelado' => false,
+                'parcela_fixa' => false,
+                'fixo_mensal' => false,
+
+                'mes_atual' => null,
+                'total_meses' => null,
+
+                'parcela_atual' => null,
+                'total_parcelas' => null,
+
+                'grupo_parcelamento' => null,
+                'grupo_fixo_mensal' => null,
+
+                'data_pagamento' => $dataPagamento,
+            ]);
+
+            return response()->json([
+                'message' =>
+                    'Movimentação cadastrada com sucesso.',
+
+                'movimentacao' => [
+                    'id' => $movimentacao->id,
+                    'tipo' => $movimentacao->tipo,
+                    'descricao' =>
+                        $movimentacao->descricao,
+                    'valor' =>
+                        (float) $movimentacao->valor,
+                    'data' =>
+                        $movimentacao->data
+                            ->format('Y-m-d'),
+
+                    'data_pagamento' =>
+                        $movimentacao->data_pagamento
+                            ? $movimentacao
+                                ->data_pagamento
+                                ->format('Y-m-d')
+                            : null,
+
+                    'categoria' =>
+                        $movimentacao->categoria,
+
+                    'forma_pagamento' =>
+                        $movimentacao->forma_pagamento,
+
+                    'status' =>
+                        $movimentacao->status,
+
+                    'observacao' =>
+                        $movimentacao->observacao,
+                ],
+            ], 201);
+        }
+
+        /*
+         * DESPESA PARCELADA
+         *
+         * O valor informado corresponde ao valor
+         * de cada parcela.
+         */
+        $totalParcelas =
+            (int) $dados['total_parcelas'];
+
+        $grupoParcelamento =
+            (string) Str::uuid();
+
+        $valorParcela =
+            (float) $dados['valor'];
+
+        $dataPrimeiraParcela =
+            Carbon::parse($dados['data']);
+
+        $parcelasCriadas = [];
+
+        DB::transaction(function () use (
+            $dados,
+            $user,
+            $totalParcelas,
+            $grupoParcelamento,
+            $valorParcela,
+            $dataPrimeiraParcela,
+            &$parcelasCriadas
+        ): void {
+            for (
+                $parcela = 1;
+                $parcela <= $totalParcelas;
+                $parcela++
+            ) {
+                $descricaoParcela =
+                    $dados['descricao']
+                    . ' - Parcela '
+                    . $parcela
+                    . '/'
+                    . $totalParcelas;
+
+                $movimentacao = Movimentacao::create([
+                    'user_id' => $user->id,
+                    'tipo' => 'despesa',
+                    'descricao' => $descricaoParcela,
+                    'valor' => $valorParcela,
+
+                    'data' => $dataPrimeiraParcela
+                        ->copy()
+                        ->addMonthsNoOverflow(
+                            $parcela - 1
+                        )
+                        ->format('Y-m-d'),
+
+                    'categoria' =>
+                        $dados['categoria'] ?? null,
+
+                    'forma_pagamento' =>
+                        $dados['forma_pagamento'] ?? null,
+
+                    'status' => 'pendente',
+
+                    'observacao' =>
+                        $dados['observacao'] ?? null,
+
+                    'parcelado' => true,
+                    'parcela_fixa' => false,
+                    'fixo_mensal' => false,
+
+                    'mes_atual' => null,
+                    'total_meses' => null,
+
+                    'parcela_atual' => $parcela,
+                    'total_parcelas' =>
+                        $totalParcelas,
+
+                    'grupo_parcelamento' =>
+                        $grupoParcelamento,
+
+                    'grupo_fixo_mensal' => null,
+
+                    'data_pagamento' => null,
+                ]);
+
+                $parcelasCriadas[] = [
+                    'id' =>
+                        $movimentacao->id,
+
+                    'parcela_atual' =>
+                        $parcela,
+
+                    'total_parcelas' =>
+                        $totalParcelas,
+
+                    'descricao' =>
+                        $movimentacao->descricao,
+
+                    'valor' =>
+                        (float) $movimentacao->valor,
+
+                    'data' =>
+                        $movimentacao->data
+                            ->format('Y-m-d'),
+                ];
+            }
+        });
+
+        return response()->json([
+            'message' =>
+                'Compra parcelada cadastrada com sucesso.',
+
+            'grupo_parcelamento' =>
+                $grupoParcelamento,
+
+            'parcelas' =>
+                $parcelasCriadas,
+        ], 201);
     }
 }
