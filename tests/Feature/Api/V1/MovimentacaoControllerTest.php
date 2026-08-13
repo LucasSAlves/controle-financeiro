@@ -954,3 +954,241 @@ test('opcoes de movimentacao rejeitam tipo invalido', function () {
             'tipo',
         ]);
 });
+
+test('usuario autenticado pode consultar uma movimentacao propria', function () {
+    /** @var \Tests\TestCase $this */
+
+    $user = User::factory()->create();
+
+    Sanctum::actingAs(
+        $user,
+        ['mobile']
+    );
+
+    $movimentacao = \App\Models\Movimentacao::create([
+        'user_id' => $user->id,
+        'tipo' => 'despesa',
+        'descricao' => 'Conta de energia',
+        'valor' => 150,
+        'data' => '2026-08-13',
+        'categoria' => 'Casa',
+        'forma_pagamento' => 'Pix',
+        'status' => 'pendente',
+        'observacao' => 'Teste detalhes',
+        'parcelado' => false,
+        'parcela_fixa' => false,
+        'fixo_mensal' => false,
+        'data_pagamento' => null,
+    ]);
+
+    $response = $this->getJson(
+        "/api/v1/movimentacoes/{$movimentacao->id}"
+    );
+
+    $response
+        ->assertOk()
+        ->assertJsonPath(
+            'movimentacao.id',
+            $movimentacao->id
+        )
+        ->assertJsonPath(
+            'movimentacao.tipo',
+            'despesa'
+        )
+        ->assertJsonPath(
+            'movimentacao.descricao',
+            'Conta de energia'
+        )
+        ->assertJsonPath(
+            'movimentacao.valor',
+            150
+        )
+        ->assertJsonPath(
+            'movimentacao.categoria',
+            'Casa'
+        )
+        ->assertJsonPath(
+            'movimentacao.forma_pagamento',
+            'Pix'
+        )
+        ->assertJsonPath(
+            'movimentacao.status',
+            'pendente'
+        );
+});
+
+test('usuario nao pode consultar movimentacao de outro usuario', function () {
+    /** @var \Tests\TestCase $this */
+
+    $user = User::factory()->create();
+    $outroUsuario = User::factory()->create();
+
+    Sanctum::actingAs(
+        $user,
+        ['mobile']
+    );
+
+    $movimentacao = \App\Models\Movimentacao::create([
+        'user_id' => $outroUsuario->id,
+        'tipo' => 'despesa',
+        'descricao' => 'Despesa de outro usuario',
+        'valor' => 200,
+        'data' => '2026-08-13',
+        'categoria' => null,
+        'forma_pagamento' => null,
+        'status' => 'pendente',
+        'observacao' => null,
+        'parcelado' => false,
+        'parcela_fixa' => false,
+        'fixo_mensal' => false,
+        'data_pagamento' => null,
+    ]);
+
+    $response = $this->getJson(
+        "/api/v1/movimentacoes/{$movimentacao->id}"
+    );
+
+    $response->assertNotFound();
+});
+
+test('usuario pode marcar despesa propria como paga', function () {
+    /** @var \Tests\TestCase $this */
+
+    $user = User::factory()->create();
+
+    Sanctum::actingAs(
+        $user,
+        ['mobile']
+    );
+
+    $movimentacao = \App\Models\Movimentacao::create([
+        'user_id' => $user->id,
+        'tipo' => 'despesa',
+        'descricao' => 'Internet',
+        'valor' => 100,
+        'data' => '2026-08-13',
+        'categoria' => 'Casa',
+        'forma_pagamento' => 'Pix',
+        'status' => 'pendente',
+        'observacao' => null,
+        'parcelado' => false,
+        'parcela_fixa' => false,
+        'fixo_mensal' => false,
+        'data_pagamento' => null,
+    ]);
+
+    $response = $this->patchJson(
+        "/api/v1/movimentacoes/{$movimentacao->id}/pagar"
+    );
+
+    $response
+        ->assertOk()
+        ->assertJsonPath(
+            'message',
+            'Despesa marcada como paga com sucesso.'
+        )
+        ->assertJsonPath(
+            'movimentacao.status',
+            'pago'
+        );
+
+    $this->assertDatabaseHas(
+        'movimentacoes',
+        [
+            'id' => $movimentacao->id,
+            'user_id' => $user->id,
+            'status' => 'pago',
+        ]
+    );
+
+    $movimentacao->refresh();
+
+    expect(
+        $movimentacao->data_pagamento
+            ? $movimentacao->data_pagamento->toDateString()
+            : null
+    )->toBe(
+        now()->toDateString()
+    );
+});
+
+test('entrada nao pode ser marcada como paga', function () {
+    /** @var \Tests\TestCase $this */
+
+    $user = User::factory()->create();
+
+    Sanctum::actingAs(
+        $user,
+        ['mobile']
+    );
+
+    $movimentacao = \App\Models\Movimentacao::create([
+        'user_id' => $user->id,
+        'tipo' => 'entrada',
+        'descricao' => 'Salario',
+        'valor' => 1000,
+        'data' => '2026-08-13',
+        'categoria' => 'Salario',
+        'forma_pagamento' => null,
+        'status' => 'recebido',
+        'observacao' => null,
+        'parcelado' => false,
+        'parcela_fixa' => false,
+        'fixo_mensal' => false,
+        'data_pagamento' => null,
+    ]);
+
+    $response = $this->patchJson(
+        "/api/v1/movimentacoes/{$movimentacao->id}/pagar"
+    );
+
+    $response
+        ->assertStatus(422)
+        ->assertJsonPath(
+            'message',
+            'Somente despesas podem ser marcadas como pagas.'
+        );
+});
+
+test('usuario nao pode marcar despesa de outro usuario como paga', function () {
+    /** @var \Tests\TestCase $this */
+
+    $user = User::factory()->create();
+    $outroUsuario = User::factory()->create();
+
+    Sanctum::actingAs(
+        $user,
+        ['mobile']
+    );
+
+    $movimentacao = \App\Models\Movimentacao::create([
+        'user_id' => $outroUsuario->id,
+        'tipo' => 'despesa',
+        'descricao' => 'Despesa protegida',
+        'valor' => 50,
+        'data' => '2026-08-13',
+        'categoria' => null,
+        'forma_pagamento' => null,
+        'status' => 'pendente',
+        'observacao' => null,
+        'parcelado' => false,
+        'parcela_fixa' => false,
+        'fixo_mensal' => false,
+        'data_pagamento' => null,
+    ]);
+
+    $response = $this->patchJson(
+        "/api/v1/movimentacoes/{$movimentacao->id}/pagar"
+    );
+
+    $response->assertNotFound();
+
+    $this->assertDatabaseHas(
+        'movimentacoes',
+        [
+            'id' => $movimentacao->id,
+            'status' => 'pendente',
+            'data_pagamento' => null,
+        ]
+    );
+});

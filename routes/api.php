@@ -26,6 +26,16 @@ Route::prefix('v1')->group(function () {
             'index',
         ]);
 
+        Route::get('/movimentacoes/{id}', [
+            MovimentacaoController::class,
+            'show',
+        ]);
+
+        Route::patch('/movimentacoes/{id}/pagar', [
+            MovimentacaoController::class,
+            'marcarComoPago',
+        ]);
+
         Route::post('/movimentacoes', [
             MovimentacaoController::class,
             'store',

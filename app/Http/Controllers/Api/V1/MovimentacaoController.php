@@ -495,4 +495,125 @@ class MovimentacaoController extends Controller
                 $parcelasCriadas,
         ], 201);
     }
+    /**
+ * Retorna os detalhes de uma movimentação
+ * pertencente ao usuário autenticado.
+ */
+public function show(
+    string $id
+): JsonResponse {
+    $user = request()->user();
+
+    $movimentacao = Movimentacao::query()
+        ->where('user_id', $user->id)
+        ->where('id', $id)
+        ->firstOrFail();
+
+    return response()->json([
+        'movimentacao' => [
+            'id' => $movimentacao->id,
+            'tipo' => $movimentacao->tipo,
+            'descricao' => $movimentacao->descricao,
+            'valor' => (float) $movimentacao->valor,
+
+            'data' => $movimentacao->data
+                ->format('Y-m-d'),
+
+            'data_pagamento' =>
+                $movimentacao->data_pagamento
+                    ? $movimentacao->data_pagamento
+                        ->format('Y-m-d')
+                    : null,
+
+            'categoria' =>
+                $movimentacao->categoria,
+
+            'forma_pagamento' =>
+                $movimentacao->forma_pagamento,
+
+            'status' =>
+                $movimentacao->status,
+
+            'observacao' =>
+                $movimentacao->observacao,
+
+            'parcelado' =>
+                (bool) $movimentacao->parcelado,
+
+            'parcela_fixa' =>
+                (bool) $movimentacao->parcela_fixa,
+
+            'fixo_mensal' =>
+                (bool) $movimentacao->fixo_mensal,
+
+            'despesa_fixa_id' =>
+                $movimentacao->despesa_fixa_id,
+
+            'entrada_fixa_id' =>
+                $movimentacao->entrada_fixa_id,
+
+            'parcela_atual' =>
+                $movimentacao->parcela_atual,
+
+            'total_parcelas' =>
+                $movimentacao->total_parcelas,
+
+            'grupo_parcelamento' =>
+                $movimentacao->grupo_parcelamento,
+
+            'mes_atual' =>
+                $movimentacao->mes_atual,
+
+            'total_meses' =>
+                $movimentacao->total_meses,
+
+            'grupo_fixo_mensal' =>
+                $movimentacao->grupo_fixo_mensal,
+        ],
+    ]);
+}
+
+    /**
+     * Marca uma despesa como paga.
+     */
+    public function marcarComoPago(
+        string $id
+    ): JsonResponse {
+        $user = request()->user();
+
+        $movimentacao = Movimentacao::query()
+            ->where('user_id', $user->id)
+            ->where('id', $id)
+            ->firstOrFail();
+
+        if ($movimentacao->tipo !== 'despesa') {
+            return response()->json([
+                'message' =>
+                    'Somente despesas podem ser marcadas como pagas.',
+            ], 422);
+        }
+
+        $movimentacao->update([
+            'status' => 'pago',
+            'data_pagamento' => now()->toDateString(),
+        ]);
+
+        $movimentacao->refresh();
+
+        return response()->json([
+            'message' =>
+                'Despesa marcada como paga com sucesso.',
+
+            'movimentacao' => [
+                'id' => $movimentacao->id,
+                'status' => $movimentacao->status,
+
+                'data_pagamento' =>
+                    $movimentacao->data_pagamento
+                        ? $movimentacao->data_pagamento
+                            ->format('Y-m-d')
+                        : null,
+            ],
+        ]);
+    }
 }
