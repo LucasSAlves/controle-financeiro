@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\DashboardController;
 use App\Http\Controllers\Api\V1\MovimentacaoController;
+use App\Http\Controllers\Api\V1\MovimentacaoOpcoesController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function () {
@@ -17,6 +18,11 @@ Route::prefix('v1')->group(function () {
 
         Route::get('/movimentacoes', [
             MovimentacaoController::class,
+            'index',
+        ]);
+
+        Route::get('/movimentacoes/opcoes', [
+            MovimentacaoOpcoesController::class,
             'index',
         ]);
 

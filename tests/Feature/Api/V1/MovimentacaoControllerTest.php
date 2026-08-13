@@ -1,7 +1,9 @@
 <?php
 
+use App\Models\Categoria;
 use App\Models\DespesaFixa;
 use App\Models\EntradaFixa;
+use App\Models\FormaPagamento;
 use App\Models\Movimentacao;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -760,4 +762,195 @@ test('usuario pode cadastrar despesa fixa mensal pela api', function () {
     expect(
         $movimentacao->data->format('Y-m-d')
     )->toBe('2026-08-12');
+});
+
+test('opcoes de movimentacao rejeitam acesso sem autenticacao', function () {
+    /** @var \Tests\TestCase $this */
+
+    $response = $this->getJson(
+        '/api/v1/movimentacoes/opcoes?tipo=despesa'
+    );
+
+    $response->assertUnauthorized();
+});
+
+test('opcoes de despesa retornam somente dados ativos do usuario autenticado', function () {
+    /** @var \Tests\TestCase $this */
+
+    $user = User::factory()->create();
+    $outroUsuario = User::factory()->create();
+
+    Sanctum::actingAs(
+        $user,
+        ['mobile']
+    );
+
+    Categoria::create([
+        'user_id' => $user->id,
+        'tipo' => 'despesa',
+        'nome' => 'Casa',
+        'ativo' => true,
+    ]);
+
+    Categoria::create([
+        'user_id' => $user->id,
+        'tipo' => 'despesa',
+        'nome' => 'Desativada',
+        'ativo' => false,
+    ]);
+
+    Categoria::create([
+        'user_id' => $user->id,
+        'tipo' => 'entrada',
+        'nome' => 'Salário',
+        'ativo' => true,
+    ]);
+
+    Categoria::create([
+        'user_id' => $outroUsuario->id,
+        'tipo' => 'despesa',
+        'nome' => 'Categoria outro usuário',
+        'ativo' => true,
+    ]);
+
+    FormaPagamento::create([
+        'user_id' => $user->id,
+        'nome' => 'Pix',
+        'ativo' => true,
+    ]);
+
+    FormaPagamento::create([
+        'user_id' => $user->id,
+        'nome' => 'Cartão inativo',
+        'ativo' => false,
+    ]);
+
+    FormaPagamento::create([
+        'user_id' => $outroUsuario->id,
+        'nome' => 'Forma outro usuário',
+        'ativo' => true,
+    ]);
+
+    $response = $this->getJson(
+        '/api/v1/movimentacoes/opcoes?tipo=despesa'
+    );
+
+    $response
+        ->assertOk()
+        ->assertJsonPath(
+            'tipo',
+            'despesa'
+        )
+        ->assertJsonCount(
+            1,
+            'categorias'
+        )
+        ->assertJsonPath(
+            'categorias.0.nome',
+            'Casa'
+        )
+        ->assertJsonCount(
+            1,
+            'formas_pagamento'
+        )
+        ->assertJsonPath(
+            'formas_pagamento.0.nome',
+            'Pix'
+        )
+        ->assertJsonMissing([
+            'nome' => 'Desativada',
+        ])
+        ->assertJsonMissing([
+            'nome' => 'Salário',
+        ])
+        ->assertJsonMissing([
+            'nome' => 'Categoria outro usuário',
+        ])
+        ->assertJsonMissing([
+            'nome' => 'Cartão inativo',
+        ])
+        ->assertJsonMissing([
+            'nome' => 'Forma outro usuário',
+        ]);
+});
+
+test('opcoes de entrada retornam categorias de entrada e nenhuma forma de pagamento', function () {
+    /** @var \Tests\TestCase $this */
+
+    $user = User::factory()->create();
+
+    Sanctum::actingAs(
+        $user,
+        ['mobile']
+    );
+
+    Categoria::create([
+        'user_id' => $user->id,
+        'tipo' => 'entrada',
+        'nome' => 'Salário',
+        'ativo' => true,
+    ]);
+
+    Categoria::create([
+        'user_id' => $user->id,
+        'tipo' => 'despesa',
+        'nome' => 'Casa',
+        'ativo' => true,
+    ]);
+
+    FormaPagamento::create([
+        'user_id' => $user->id,
+        'nome' => 'Pix',
+        'ativo' => true,
+    ]);
+
+    $response = $this->getJson(
+        '/api/v1/movimentacoes/opcoes?tipo=entrada'
+    );
+
+    $response
+        ->assertOk()
+        ->assertJsonPath(
+            'tipo',
+            'entrada'
+        )
+        ->assertJsonCount(
+            1,
+            'categorias'
+        )
+        ->assertJsonPath(
+            'categorias.0.nome',
+            'Salário'
+        )
+        ->assertJsonCount(
+            0,
+            'formas_pagamento'
+        )
+        ->assertJsonMissing([
+            'nome' => 'Casa',
+        ])
+        ->assertJsonMissing([
+            'nome' => 'Pix',
+        ]);
+});
+
+test('opcoes de movimentacao rejeitam tipo invalido', function () {
+    /** @var \Tests\TestCase $this */
+
+    $user = User::factory()->create();
+
+    Sanctum::actingAs(
+        $user,
+        ['mobile']
+    );
+
+    $response = $this->getJson(
+        '/api/v1/movimentacoes/opcoes?tipo=qualquer'
+    );
+
+    $response
+        ->assertStatus(422)
+        ->assertJsonValidationErrors([
+            'tipo',
+        ]);
 });
