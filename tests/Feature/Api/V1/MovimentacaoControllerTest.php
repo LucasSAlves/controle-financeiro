@@ -1968,3 +1968,597 @@ test('api nao permite excluir parcela atual ja paga', function () {
         ]
     );
 });
+
+test('usuario pode editar somente o mes atual de despesa fixa pela api', function () {
+    /** @var \Tests\TestCase $this */
+
+    $user = User::factory()->create();
+
+    Sanctum::actingAs($user, ['mobile']);
+
+    $grupo = 'grupo-despesa-fixa-atual';
+
+    $regra = \App\Models\DespesaFixa::create([
+        'user_id' => $user->id,
+        'grupo_recorrencia' => $grupo,
+        'descricao' => 'Internet',
+        'valor' => 100,
+        'data_inicio' => '2026-08-10',
+        'dia_vencimento' => 10,
+        'categoria' => 'Casa',
+        'forma_pagamento' => 'Pix',
+        'observacao' => null,
+        'ativa' => true,
+        'encerrada_em' => null,
+    ]);
+
+    $agosto = \App\Models\Movimentacao::create([
+        'user_id' => $user->id,
+        'tipo' => 'despesa',
+        'descricao' => 'Internet',
+        'valor' => 100,
+        'data' => '2026-08-10',
+        'categoria' => 'Casa',
+        'forma_pagamento' => 'Pix',
+        'status' => 'pendente',
+        'observacao' => null,
+
+        'parcelado' => false,
+        'parcela_fixa' => true,
+        'fixo_mensal' => false,
+
+        'despesa_fixa_id' => $regra->id,
+        'entrada_fixa_id' => null,
+
+        'parcela_atual' => null,
+        'total_parcelas' => null,
+        'grupo_parcelamento' => null,
+
+        'mes_atual' => null,
+        'total_meses' => null,
+        'grupo_fixo_mensal' => null,
+
+        'data_pagamento' => null,
+    ]);
+
+    $setembro = \App\Models\Movimentacao::create([
+        'user_id' => $user->id,
+        'tipo' => 'despesa',
+        'descricao' => 'Internet',
+        'valor' => 100,
+        'data' => '2026-09-10',
+        'categoria' => 'Casa',
+        'forma_pagamento' => 'Pix',
+        'status' => 'pendente',
+        'observacao' => null,
+
+        'parcelado' => false,
+        'parcela_fixa' => true,
+        'fixo_mensal' => false,
+
+        'despesa_fixa_id' => $regra->id,
+        'entrada_fixa_id' => null,
+
+        'parcela_atual' => null,
+        'total_parcelas' => null,
+        'grupo_parcelamento' => null,
+
+        'mes_atual' => null,
+        'total_meses' => null,
+        'grupo_fixo_mensal' => null,
+
+        'data_pagamento' => null,
+    ]);
+
+    $response = $this->putJson(
+        "/api/v1/movimentacoes/{$agosto->id}",
+        [
+            'tipo' => 'despesa',
+            'descricao' => 'Internet agosto',
+            'valor' => 120,
+            'data' => '2026-08-15',
+            'categoria' => 'Casa',
+            'forma_pagamento' => 'Cartao',
+            'status' => 'pendente',
+            'observacao' => 'Somente agosto',
+            'modo_edicao' => 'atual',
+        ]
+    );
+
+    $response->assertOk();
+
+    $agosto->refresh();
+    $setembro->refresh();
+    $regra->refresh();
+
+    expect($agosto->descricao)
+        ->toBe('Internet agosto');
+
+    expect((float) $agosto->valor)
+        ->toBe(120.0);
+
+    expect($agosto->data->toDateString())
+        ->toBe('2026-08-15');
+
+    expect($agosto->forma_pagamento)
+        ->toBe('Cartao');
+
+    expect($agosto->observacao)
+        ->toBe('Somente agosto');
+
+    /*
+    * Setembro deve continuar exatamente
+    * com a regra antiga.
+    */
+    expect($setembro->descricao)
+        ->toBe('Internet');
+
+    expect((float) $setembro->valor)
+        ->toBe(100.0);
+
+    expect($setembro->data->toDateString())
+        ->toBe('2026-09-10');
+
+    expect($setembro->forma_pagamento)
+        ->toBe('Pix');
+
+    /*
+    * A regra também não deve ser alterada,
+    * pois a edição foi somente deste mês.
+    */
+    expect($regra->descricao)
+        ->toBe('Internet');
+
+    expect((float) $regra->valor)
+        ->toBe(100.0);
+
+    expect($regra->ativa)
+        ->toBeTrue();
+});
+
+test('usuario pode editar despesa fixa deste mes e proximos pela api', function () {
+    /** @var \Tests\TestCase $this */
+
+    $user = User::factory()->create();
+
+    Sanctum::actingAs($user, ['mobile']);
+
+    $grupo = 'grupo-despesa-fixa-futuros';
+
+    $regraAntiga = \App\Models\DespesaFixa::create([
+        'user_id' => $user->id,
+        'grupo_recorrencia' => $grupo,
+        'descricao' => 'Academia',
+        'valor' => 90,
+        'data_inicio' => '2026-07-10',
+        'dia_vencimento' => 10,
+        'categoria' => 'Casa',
+        'forma_pagamento' => 'Pix',
+        'observacao' => null,
+        'ativa' => true,
+        'encerrada_em' => null,
+    ]);
+
+    $julho = \App\Models\Movimentacao::create([
+        'user_id' => $user->id,
+        'tipo' => 'despesa',
+        'descricao' => 'Academia',
+        'valor' => 90,
+        'data' => '2026-07-10',
+        'categoria' => 'Casa',
+        'forma_pagamento' => 'Pix',
+        'status' => 'pendente',
+        'observacao' => null,
+        'parcelado' => false,
+        'parcela_fixa' => true,
+        'fixo_mensal' => false,
+        'despesa_fixa_id' => $regraAntiga->id,
+        'data_pagamento' => null,
+    ]);
+
+    $agosto = \App\Models\Movimentacao::create([
+        'user_id' => $user->id,
+        'tipo' => 'despesa',
+        'descricao' => 'Academia',
+        'valor' => 90,
+        'data' => '2026-08-10',
+        'categoria' => 'Casa',
+        'forma_pagamento' => 'Pix',
+        'status' => 'pendente',
+        'observacao' => null,
+        'parcelado' => false,
+        'parcela_fixa' => true,
+        'fixo_mensal' => false,
+        'despesa_fixa_id' => $regraAntiga->id,
+        'data_pagamento' => null,
+    ]);
+
+    $setembro = \App\Models\Movimentacao::create([
+        'user_id' => $user->id,
+        'tipo' => 'despesa',
+        'descricao' => 'Academia',
+        'valor' => 90,
+        'data' => '2026-09-10',
+        'categoria' => 'Casa',
+        'forma_pagamento' => 'Pix',
+        'status' => 'pendente',
+        'observacao' => null,
+        'parcelado' => false,
+        'parcela_fixa' => true,
+        'fixo_mensal' => false,
+        'despesa_fixa_id' => $regraAntiga->id,
+        'data_pagamento' => null,
+    ]);
+
+    $response = $this->putJson(
+        "/api/v1/movimentacoes/{$agosto->id}",
+        [
+            'tipo' => 'despesa',
+            'descricao' => 'Academia nova',
+            'valor' => 110,
+            'data' => '2026-08-15',
+            'categoria' => 'Casa',
+            'forma_pagamento' => 'Cartao',
+            'status' => 'pendente',
+            'observacao' => 'Novo valor',
+            'modo_edicao' => 'futuros_fixa',
+        ]
+    );
+
+    $response->assertOk();
+
+    $regraAntiga->refresh();
+    $julho->refresh();
+    $agosto->refresh();
+    $setembro->refresh();
+
+    /*
+    * Julho é histórico anterior e não muda.
+    */
+    expect($julho->descricao)
+        ->toBe('Academia');
+
+    expect((float) $julho->valor)
+        ->toBe(90.0);
+
+    expect($julho->data->toDateString())
+        ->toBe('2026-07-10');
+
+    /*
+    * Agosto e setembro recebem a nova regra.
+    */
+    expect($agosto->descricao)
+        ->toBe('Academia nova');
+
+    expect((float) $agosto->valor)
+        ->toBe(110.0);
+
+    expect($agosto->data->toDateString())
+        ->toBe('2026-08-15');
+
+    expect($setembro->descricao)
+        ->toBe('Academia nova');
+
+    expect((float) $setembro->valor)
+        ->toBe(110.0);
+
+    expect($setembro->data->toDateString())
+        ->toBe('2026-09-15');
+
+    /*
+    * A regra anterior deve ser encerrada.
+    */
+    expect($regraAntiga->ativa)
+        ->toBeFalse();
+
+    $novaRegra = \App\Models\DespesaFixa::where(
+        'user_id',
+        $user->id
+    )
+        ->where(
+            'grupo_recorrencia',
+            $grupo
+        )
+        ->where('ativa', true)
+        ->firstOrFail();
+
+    expect($novaRegra->descricao)
+        ->toBe('Academia nova');
+
+    expect((float) $novaRegra->valor)
+        ->toBe(110.0);
+
+    expect($novaRegra->dia_vencimento)
+        ->toBe(15);
+
+    expect($agosto->despesa_fixa_id)
+        ->toBe($novaRegra->id);
+
+    expect($setembro->despesa_fixa_id)
+        ->toBe($novaRegra->id);
+});
+
+test('usuario pode excluir somente o mes atual de despesa fixa pela api', function () {
+    /** @var \Tests\TestCase $this */
+
+    $user = User::factory()->create();
+
+    Sanctum::actingAs($user, ['mobile']);
+
+    $regra = \App\Models\DespesaFixa::create([
+        'user_id' => $user->id,
+        'grupo_recorrencia' => 'grupo-fixa-excluir-atual',
+        'descricao' => 'Internet',
+        'valor' => 100,
+        'data_inicio' => '2026-08-10',
+        'dia_vencimento' => 10,
+        'categoria' => 'Casa',
+        'forma_pagamento' => 'Pix',
+        'observacao' => null,
+        'ativa' => true,
+        'encerrada_em' => null,
+    ]);
+
+    $agosto = \App\Models\Movimentacao::create([
+        'user_id' => $user->id,
+        'tipo' => 'despesa',
+        'descricao' => 'Internet',
+        'valor' => 100,
+        'data' => '2026-08-10',
+        'categoria' => 'Casa',
+        'forma_pagamento' => 'Pix',
+        'status' => 'pendente',
+        'observacao' => null,
+
+        'parcelado' => false,
+        'parcela_fixa' => true,
+        'fixo_mensal' => false,
+
+        'despesa_fixa_id' => $regra->id,
+        'entrada_fixa_id' => null,
+
+        'data_pagamento' => null,
+    ]);
+
+    $setembro = \App\Models\Movimentacao::create([
+        'user_id' => $user->id,
+        'tipo' => 'despesa',
+        'descricao' => 'Internet',
+        'valor' => 100,
+        'data' => '2026-09-10',
+        'categoria' => 'Casa',
+        'forma_pagamento' => 'Pix',
+        'status' => 'pendente',
+        'observacao' => null,
+
+        'parcelado' => false,
+        'parcela_fixa' => true,
+        'fixo_mensal' => false,
+
+        'despesa_fixa_id' => $regra->id,
+        'entrada_fixa_id' => null,
+
+        'data_pagamento' => null,
+    ]);
+
+    $response = $this->deleteJson(
+        "/api/v1/movimentacoes/{$agosto->id}",
+        [
+            'modo_exclusao' => 'atual',
+        ]
+    );
+
+    $response->assertOk();
+
+    $this->assertDatabaseMissing(
+        'movimentacoes',
+        [
+            'id' => $agosto->id,
+        ]
+    );
+
+    $this->assertDatabaseHas(
+        'movimentacoes',
+        [
+            'id' => $setembro->id,
+        ]
+    );
+
+    /*
+    * A exceção impede o gerador de recriar
+    * novamente agosto.
+    */
+    $this->assertDatabaseHas(
+        'despesa_fixa_excecoes',
+        [
+            'despesa_fixa_id' => $regra->id,
+            'competencia' => '2026-08-01 00:00:00',
+        ]
+    );
+
+    $regra->refresh();
+
+    expect($regra->ativa)
+        ->toBeTrue();
+});
+
+test('api nao permite excluir mes ja pago de despesa fixa', function () {
+    /** @var \Tests\TestCase $this */
+
+    $user = User::factory()->create();
+
+    Sanctum::actingAs($user, ['mobile']);
+
+    $regra = \App\Models\DespesaFixa::create([
+        'user_id' => $user->id,
+        'grupo_recorrencia' => 'grupo-fixa-paga',
+        'descricao' => 'Energia',
+        'valor' => 150,
+        'data_inicio' => '2026-08-10',
+        'dia_vencimento' => 10,
+        'categoria' => 'Casa',
+        'forma_pagamento' => 'Pix',
+        'observacao' => null,
+        'ativa' => true,
+        'encerrada_em' => null,
+    ]);
+
+    $agosto = \App\Models\Movimentacao::create([
+        'user_id' => $user->id,
+        'tipo' => 'despesa',
+        'descricao' => 'Energia',
+        'valor' => 150,
+        'data' => '2026-08-10',
+        'categoria' => 'Casa',
+        'forma_pagamento' => 'Pix',
+        'status' => 'pago',
+        'observacao' => null,
+
+        'parcelado' => false,
+        'parcela_fixa' => true,
+        'fixo_mensal' => false,
+
+        'despesa_fixa_id' => $regra->id,
+        'entrada_fixa_id' => null,
+
+        'data_pagamento' => '2026-08-10',
+    ]);
+
+    $response = $this->deleteJson(
+        "/api/v1/movimentacoes/{$agosto->id}",
+        [
+            'modo_exclusao' => 'atual',
+        ]
+    );
+
+    $response->assertStatus(422);
+
+    $this->assertDatabaseHas(
+        'movimentacoes',
+        [
+            'id' => $agosto->id,
+            'status' => 'pago',
+        ]
+    );
+});
+
+test('usuario pode encerrar despesa fixa preservando lancamentos pagos', function () {
+    /** @var \Tests\TestCase $this */
+
+    $user = User::factory()->create();
+
+    Sanctum::actingAs($user, ['mobile']);
+
+    $regra = \App\Models\DespesaFixa::create([
+        'user_id' => $user->id,
+        'grupo_recorrencia' => 'grupo-fixa-encerrar',
+        'descricao' => 'Academia',
+        'valor' => 90,
+        'data_inicio' => '2026-08-10',
+        'dia_vencimento' => 10,
+        'categoria' => 'Casa',
+        'forma_pagamento' => 'Pix',
+        'observacao' => null,
+        'ativa' => true,
+        'encerrada_em' => null,
+    ]);
+
+    $agosto = \App\Models\Movimentacao::create([
+        'user_id' => $user->id,
+        'tipo' => 'despesa',
+        'descricao' => 'Academia',
+        'valor' => 90,
+        'data' => '2026-08-10',
+        'categoria' => 'Casa',
+        'forma_pagamento' => 'Pix',
+        'status' => 'pendente',
+        'observacao' => null,
+        'parcelado' => false,
+        'parcela_fixa' => true,
+        'fixo_mensal' => false,
+        'despesa_fixa_id' => $regra->id,
+        'data_pagamento' => null,
+    ]);
+
+    $setembro = \App\Models\Movimentacao::create([
+        'user_id' => $user->id,
+        'tipo' => 'despesa',
+        'descricao' => 'Academia',
+        'valor' => 90,
+        'data' => '2026-09-10',
+        'categoria' => 'Casa',
+        'forma_pagamento' => 'Pix',
+        'status' => 'pago',
+        'observacao' => null,
+        'parcelado' => false,
+        'parcela_fixa' => true,
+        'fixo_mensal' => false,
+        'despesa_fixa_id' => $regra->id,
+        'data_pagamento' => '2026-09-10',
+    ]);
+
+    $outubro = \App\Models\Movimentacao::create([
+        'user_id' => $user->id,
+        'tipo' => 'despesa',
+        'descricao' => 'Academia',
+        'valor' => 90,
+        'data' => '2026-10-10',
+        'categoria' => 'Casa',
+        'forma_pagamento' => 'Pix',
+        'status' => 'pendente',
+        'observacao' => null,
+        'parcelado' => false,
+        'parcela_fixa' => true,
+        'fixo_mensal' => false,
+        'despesa_fixa_id' => $regra->id,
+        'data_pagamento' => null,
+    ]);
+
+    $response = $this->deleteJson(
+        "/api/v1/movimentacoes/{$agosto->id}",
+        [
+            'modo_exclusao' => 'encerrar_fixa',
+        ]
+    );
+
+    $response->assertOk();
+
+    /*
+    * Pendentes de agosto em diante são removidas.
+    */
+    $this->assertDatabaseMissing(
+        'movimentacoes',
+        [
+            'id' => $agosto->id,
+        ]
+    );
+
+    $this->assertDatabaseMissing(
+        'movimentacoes',
+        [
+            'id' => $outubro->id,
+        ]
+    );
+
+    /*
+    * Setembro, já pago, permanece como histórico.
+    */
+    $this->assertDatabaseHas(
+        'movimentacoes',
+        [
+            'id' => $setembro->id,
+            'status' => 'pago',
+        ]
+    );
+
+    $regra->refresh();
+
+    expect($regra->ativa)
+        ->toBeFalse();
+
+    expect(
+        $regra->encerrada_em
+            ? $regra->encerrada_em->toDateString()
+            : null
+    )->toBe('2026-08-01');
+});

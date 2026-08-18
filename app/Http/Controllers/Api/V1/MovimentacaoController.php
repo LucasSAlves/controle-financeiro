@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\MovimentacaoIndexRequest;
 use App\Http\Requests\Api\V1\MovimentacaoStoreRequest;
 use App\Models\DespesaFixa;
+use App\Models\DespesaFixaExcecao;
 use App\Models\EntradaFixa;
 use App\Models\Movimentacao;
 use App\Services\GerarDespesasFixasMensais;
@@ -17,8 +18,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
-class MovimentacaoController extends Controller
-{
+class MovimentacaoController extends Controller {
     /**
      * Retorna as movimentações do mês selecionado.
      */
@@ -500,9 +500,8 @@ class MovimentacaoController extends Controller
  * Retorna os detalhes de uma movimentação
  * pertencente ao usuário autenticado.
  */
-public function show(
-    string $id
-): JsonResponse {
+
+    public function show( string $id): JsonResponse {
     $user = request()->user();
 
     $movimentacao = Movimentacao::query()
@@ -574,10 +573,616 @@ public function show(
     ]);
 }
 
+private function atualizarDespesaFixa(
+    Request $request,
+    Movimentacao $movimentacao,
+    array $dados,
+    string $modoEdicao,
+): JsonResponse {
+    $userId = (int) $request->user()->id;
+
+    if ($dados['tipo'] !== 'despesa') {
+        return response()->json([
+            'message' =>
+                'Uma despesa fixa não pode ser transformada em entrada.',
+        ], 422);
+    }
+
+    $dataInformada =
+        \Carbon\Carbon::parse(
+            $dados['data']
+        );
+
+    $competenciaAtual =
+        $movimentacao->data
+            ->copy()
+            ->startOfMonth();
+
+    /*
+    * Pode alterar o dia do vencimento,
+    * mas não mudar o mês/ano do lançamento.
+    */
+    if (
+        !$dataInformada
+            ->isSameMonth(
+                $competenciaAtual
+            )
+    ) {
+        return response()->json([
+            'message' =>
+                'Para uma despesa fixa, altere somente o dia do vencimento, mantendo o mesmo mês e ano.',
+        ], 422);
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | SOMENTE ESTE MÊS
+    |--------------------------------------------------------------------------
+    */
+    if ($modoEdicao === 'atual') {
+        $status =
+            $dados['status'] === 'pago'
+                ? 'pago'
+                : 'pendente';
+
+        $movimentacao->update([
+            'tipo' => 'despesa',
+            'descricao' =>
+                $dados['descricao'],
+            'valor' =>
+                $dados['valor'],
+            'data' =>
+                $dataInformada
+                    ->format('Y-m-d'),
+            'categoria' =>
+                $dados['categoria']
+                ?? null,
+            'forma_pagamento' =>
+                $dados['forma_pagamento']
+                ?? null,
+            'status' =>
+                $status,
+            'observacao' =>
+                $dados['observacao']
+                ?? null,
+            'data_pagamento' =>
+                $status === 'pago'
+                    ? (
+                        $movimentacao
+                            ->data_pagamento
+                            ? $movimentacao
+                                ->data_pagamento
+                                ->format('Y-m-d')
+                            : now()
+                                ->toDateString()
+                    )
+                    : null,
+        ]);
+
+        $movimentacao->refresh();
+
+        return response()->json([
+            'message' =>
+                'Despesa fixa atualizada somente neste mês.',
+            'movimentacao' =>
+                $this->movimentacaoParaApi(
+                    $movimentacao
+                ),
+        ]);
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | ESTE MÊS E OS PRÓXIMOS
+    |--------------------------------------------------------------------------
+    */
+    $despesaFixaAtual =
+        DespesaFixa::where(
+            'user_id',
+            $userId
+        )
+            ->where(
+                'id',
+                $movimentacao
+                    ->despesa_fixa_id
+            )
+            ->first();
+
+    if (!$despesaFixaAtual) {
+        return response()->json([
+            'message' =>
+                'A regra desta despesa fixa não foi encontrada.',
+        ], 422);
+    }
+
+    $grupoRecorrencia =
+        $despesaFixaAtual
+            ->grupo_recorrencia;
+
+    if (!$grupoRecorrencia) {
+        return response()->json([
+            'message' =>
+                'O grupo desta despesa fixa não foi encontrado.',
+        ], 422);
+    }
+
+    DB::transaction(
+        function () use (
+            $userId,
+            $dados,
+            $movimentacao,
+            $despesaFixaAtual,
+            $dataInformada,
+            $competenciaAtual,
+            $grupoRecorrencia
+        ): void {
+            /*
+            * Pega todas as versões anteriores
+            * desta mesma recorrência.
+            */
+            $idsRegrasDoGrupo =
+                DespesaFixa::where(
+                    'user_id',
+                    $userId
+                )
+                    ->where(
+                        'grupo_recorrencia',
+                        $grupoRecorrencia
+                    )
+                    ->pluck('id');
+
+            $statusSolicitado =
+                $dados['status'] === 'pago'
+                    ? 'pago'
+                    : 'pendente';
+
+            $movimentacaoEstavaPaga =
+                $movimentacao->status
+                    === 'pago'
+                || $movimentacao
+                    ->data_pagamento;
+
+            /*
+            * Se o mês selecionado já estiver pago
+            * e continuar Pago, preserva o histórico.
+            * A nova regra passa a valer no mês seguinte.
+            */
+            $preservarMesPago =
+                $movimentacaoEstavaPaga
+                && $statusSolicitado
+                    === 'pago';
+
+            $competenciaNovaRegra =
+                $preservarMesPago
+                    ? $competenciaAtual
+                        ->copy()
+                        ->addMonth()
+                    : $competenciaAtual
+                        ->copy();
+
+            $diaVencimento =
+                $dataInformada->day;
+
+            $dataInicioNovaRegra =
+                $competenciaNovaRegra
+                    ->copy()
+                    ->day(
+                        min(
+                            $diaVencimento,
+                            $competenciaNovaRegra
+                                ->daysInMonth
+                        )
+                    );
+
+            /*
+            * Encerra qualquer versão ainda ativa
+            * desta mesma recorrência.
+            */
+            DespesaFixa::where(
+                'user_id',
+                $userId
+            )
+                ->where(
+                    'grupo_recorrencia',
+                    $grupoRecorrencia
+                )
+                ->where(
+                    'ativa',
+                    true
+                )
+                ->update([
+                    'ativa' => false,
+                    'encerrada_em' =>
+                        $competenciaNovaRegra
+                            ->copy()
+                            ->startOfMonth()
+                            ->format('Y-m-d'),
+                ]);
+
+            /*
+            * Cria a nova regra.
+            */
+            $novaDespesaFixa =
+                DespesaFixa::create([
+                    'user_id' =>
+                        $userId,
+
+                    'grupo_recorrencia' =>
+                        $grupoRecorrencia,
+
+                    'descricao' =>
+                        $dados['descricao'],
+
+                    'valor' =>
+                        $dados['valor'],
+
+                    'data_inicio' =>
+                        $dataInicioNovaRegra
+                            ->format('Y-m-d'),
+
+                    'dia_vencimento' =>
+                        $diaVencimento,
+
+                    'categoria' =>
+                        $dados['categoria']
+                        ?? null,
+
+                    'forma_pagamento' =>
+                        $dados[
+                            'forma_pagamento'
+                        ]
+                        ?? null,
+
+                    'observacao' =>
+                        $dados['observacao']
+                        ?? null,
+
+                    'ativa' =>
+                        true,
+
+                    'encerrada_em' =>
+                        null,
+                ]);
+
+            /*
+            * Mantém as competências que o usuário
+            * já havia excluído anteriormente.
+            */
+            $competenciasIgnoradas =
+                DespesaFixaExcecao::whereIn(
+                    'despesa_fixa_id',
+                    $idsRegrasDoGrupo
+                )
+                    ->whereDate(
+                        'competencia',
+                        '>=',
+                        $competenciaNovaRegra
+                            ->format('Y-m-d')
+                    )
+                    ->pluck('competencia')
+                    ->map(
+                        function (
+                            $competencia
+                        ) {
+                            return \Carbon\Carbon::parse(
+                                $competencia
+                            )
+                                ->startOfMonth()
+                                ->format(
+                                    'Y-m-d'
+                                );
+                        }
+                    )
+                    ->unique();
+
+            foreach (
+                $competenciasIgnoradas
+                as $competenciaIgnorada
+            ) {
+                DespesaFixaExcecao::firstOrCreate([
+                    'despesa_fixa_id' =>
+                        $novaDespesaFixa->id,
+
+                    'competencia' =>
+                        $competenciaIgnorada,
+                ]);
+            }
+
+            DespesaFixaExcecao::whereIn(
+                'despesa_fixa_id',
+                $idsRegrasDoGrupo
+            )
+                ->whereDate(
+                    'competencia',
+                    '>=',
+                    $competenciaNovaRegra
+                        ->format('Y-m-d')
+                )
+                ->delete();
+
+            /*
+            * Atualiza somente lançamentos pendentes
+            * do mês de início da nova regra em diante.
+            * Lançamentos pagos permanecem históricos.
+            */
+            $movimentacoesFuturas =
+                Movimentacao::where(
+                    'user_id',
+                    $userId
+                )
+                    ->whereIn(
+                        'despesa_fixa_id',
+                        $idsRegrasDoGrupo
+                    )
+                    ->whereDate(
+                        'data',
+                        '>=',
+                        $competenciaNovaRegra
+                            ->format('Y-m-d')
+                    )
+                    ->where(
+                        'status',
+                        'pendente'
+                    )
+                    ->whereNull(
+                        'data_pagamento'
+                    )
+                    ->get();
+
+            foreach (
+                $movimentacoesFuturas
+                as $item
+            ) {
+                $competenciaItem =
+                    $item->data
+                        ->copy()
+                        ->startOfMonth();
+
+                $novaDataItem =
+                    $competenciaItem
+                        ->copy()
+                        ->day(
+                            min(
+                                $diaVencimento,
+                                $competenciaItem
+                                    ->daysInMonth
+                            )
+                        );
+
+                $item->update([
+                    'despesa_fixa_id' =>
+                        $novaDespesaFixa->id,
+
+                    'tipo' =>
+                        'despesa',
+
+                    'descricao' =>
+                        $dados['descricao'],
+
+                    'valor' =>
+                        $dados['valor'],
+
+                    'data' =>
+                        $novaDataItem
+                            ->format('Y-m-d'),
+
+                    'categoria' =>
+                        $dados['categoria']
+                        ?? null,
+
+                    'forma_pagamento' =>
+                        $dados[
+                            'forma_pagamento'
+                        ]
+                        ?? null,
+
+                    'observacao' =>
+                        $dados['observacao']
+                        ?? null,
+
+                    'parcelado' =>
+                        false,
+
+                    'parcela_fixa' =>
+                        true,
+
+                    'fixo_mensal' =>
+                        false,
+
+                    'parcela_atual' =>
+                        null,
+
+                    'total_parcelas' =>
+                        null,
+
+                    'grupo_parcelamento' =>
+                        null,
+
+                    'grupo_fixo_mensal' =>
+                        null,
+                ]);
+            }
+
+            /*
+            * Se o mês aberto não precisar ser
+            * preservado como histórico pago,
+            * também o atualizamos.
+            */
+            if (!$preservarMesPago) {
+                $movimentacao->refresh();
+
+                $movimentacao->update([
+                    'despesa_fixa_id' =>
+                        $novaDespesaFixa->id,
+
+                    'tipo' =>
+                        'despesa',
+
+                    'descricao' =>
+                        $dados['descricao'],
+
+                    'valor' =>
+                        $dados['valor'],
+
+                    'data' =>
+                        $dataInformada
+                            ->format('Y-m-d'),
+
+                    'categoria' =>
+                        $dados['categoria']
+                        ?? null,
+
+                    'forma_pagamento' =>
+                        $dados[
+                            'forma_pagamento'
+                        ]
+                        ?? null,
+
+                    'status' =>
+                        $statusSolicitado,
+
+                    'observacao' =>
+                        $dados['observacao']
+                        ?? null,
+
+                    'parcelado' =>
+                        false,
+
+                    'parcela_fixa' =>
+                        true,
+
+                    'fixo_mensal' =>
+                        false,
+
+                    'parcela_atual' =>
+                        null,
+
+                    'total_parcelas' =>
+                        null,
+
+                    'grupo_parcelamento' =>
+                        null,
+
+                    'grupo_fixo_mensal' =>
+                        null,
+
+                    'data_pagamento' =>
+                        $statusSolicitado
+                            === 'pago'
+                            ? (
+                                $movimentacao
+                                    ->data_pagamento
+                                    ? $movimentacao
+                                        ->data_pagamento
+                                        ->format(
+                                            'Y-m-d'
+                                        )
+                                    : now()
+                                        ->toDateString()
+                            )
+                            : null,
+                ]);
+            }
+        }
+    );
+
+    $movimentacao->refresh();
+
+    return response()->json([
+        'message' =>
+            'Despesa fixa atualizada neste mês e nos próximos.',
+        'movimentacao' =>
+            $this->movimentacaoParaApi(
+                $movimentacao
+            ),
+    ]);
+}
+
+private function movimentacaoParaApi(
+    Movimentacao $movimentacao
+): array {
+    return [
+        'id' =>
+            $movimentacao->id,
+
+        'tipo' =>
+            $movimentacao->tipo,
+
+        'descricao' =>
+            $movimentacao->descricao,
+
+        'valor' =>
+            $movimentacao->valor,
+
+        'data' =>
+            $movimentacao->data
+                ->format('Y-m-d'),
+
+        'data_pagamento' =>
+            $movimentacao->data_pagamento
+                ? $movimentacao
+                    ->data_pagamento
+                    ->format('Y-m-d')
+                : null,
+
+        'categoria' =>
+            $movimentacao->categoria,
+
+        'forma_pagamento' =>
+            $movimentacao
+                ->forma_pagamento,
+
+        'status' =>
+            $movimentacao->status,
+
+        'observacao' =>
+            $movimentacao->observacao,
+
+        'parcelado' =>
+            $movimentacao->parcelado,
+
+        'parcela_fixa' =>
+            $movimentacao->parcela_fixa,
+
+        'fixo_mensal' =>
+            $movimentacao->fixo_mensal,
+
+        'despesa_fixa_id' =>
+            $movimentacao
+                ->despesa_fixa_id,
+
+        'entrada_fixa_id' =>
+            $movimentacao
+                ->entrada_fixa_id,
+
+        'parcela_atual' =>
+            $movimentacao
+                ->parcela_atual,
+
+        'total_parcelas' =>
+            $movimentacao
+                ->total_parcelas,
+
+        'grupo_parcelamento' =>
+            $movimentacao
+                ->grupo_parcelamento,
+
+        'mes_atual' =>
+            $movimentacao->mes_atual,
+
+        'total_meses' =>
+            $movimentacao
+                ->total_meses,
+
+        'grupo_fixo_mensal' =>
+            $movimentacao
+                ->grupo_fixo_mensal,
+    ];
+}
+
 public function update(
     Request $request,
-    string $id
-): JsonResponse {
+    string $id): JsonResponse {
     $movimentacao = Movimentacao::where(
         'user_id',
         $request->user()->id
@@ -587,13 +1192,10 @@ public function update(
 
     /*
     |--------------------------------------------------------------------------
-    | Despesas e entradas fixas serão implementadas separadamente.
+    | Despesas e entradas fixas.
     |--------------------------------------------------------------------------
     */
-    if (
-        $movimentacao->parcela_fixa
-        || $movimentacao->fixo_mensal
-    ) {
+    if ($movimentacao->fixo_mensal) {
         return response()->json([
             'message' =>
                 'Esta movimentacao possui regras especiais de edicao.',
@@ -657,8 +1259,34 @@ public function update(
             'min:2',
             'max:120',
         ],
+        'modo_edicao' => [
+            'nullable',
+            'in:atual,futuros_fixa',
+        ],
     ]);
 
+    $modoEdicao =
+            $request->input(
+                'modo_edicao',
+                'atual'
+            );
+
+    /*
+    |--------------------------------------------------------------------------
+    | DESPESA FIXA MENSAL
+    |--------------------------------------------------------------------------
+    */
+    if (
+        $movimentacao->parcela_fixa
+        && $movimentacao->despesa_fixa_id
+    ) {
+        return $this->atualizarDespesaFixa(
+            $request,
+            $movimentacao,
+            $dados,
+            $modoEdicao,
+        );
+    }
     /*
     |--------------------------------------------------------------------------
     | DESPESA PARCELADA
@@ -1243,8 +1871,11 @@ public function update(
     }
 
     unset(
-        $dados['total_parcelas']
+        $dados['total_parcelas'],
+        $dados['modo_edicao'],
     );
+
+
 
     $movimentacao->update($dados);
     $movimentacao->refresh();
@@ -1329,8 +1960,7 @@ public function update(
                 $movimentacao
                     ->grupo_fixo_mensal,
         ],
-    ]);
-}
+    ]);}
 
     /**
      * Marca uma despesa como paga.
@@ -1390,19 +2020,170 @@ public function update(
 
         /*
         |--------------------------------------------------------------------------
-        | Fixas ainda serão implementadas separadamente.
+        | Fixas.
         |--------------------------------------------------------------------------
         */
-        if (
-            $movimentacao->parcela_fixa
-            || $movimentacao->fixo_mensal
-        ) {
+        if ($movimentacao->fixo_mensal) {
             return response()->json([
                 'message' =>
                     'Esta movimentacao possui regras especiais de exclusao.',
             ], 422);
         }
 
+        /*
+        |--------------------------------------------------------------------------
+        | DESPESA FIXA MENSAL
+        |--------------------------------------------------------------------------
+        */
+        if (
+            $movimentacao->parcela_fixa
+            && $movimentacao->despesa_fixa_id
+        ) {
+            $despesaFixa = DespesaFixa::where(
+                'user_id',
+                $request->user()->id
+            )
+                ->where(
+                    'id',
+                    $movimentacao->despesa_fixa_id
+                )
+                ->first();
+
+            if (!$despesaFixa) {
+                return response()->json([
+                    'message' =>
+                        'A regra desta despesa fixa não foi encontrada.',
+                ], 422);
+            }
+
+            $modoExclusao =
+                $request->input(
+                    'modo_exclusao',
+                    'atual'
+                );
+
+            if (
+                !in_array(
+                    $modoExclusao,
+                    [
+                        'atual',
+                        'encerrar_fixa',
+                    ],
+                    true
+                )
+            ) {
+                $modoExclusao = 'atual';
+            }
+
+            $competencia =
+                \Carbon\Carbon::parse(
+                    $movimentacao->data
+                )->startOfMonth();
+
+            /*
+            |--------------------------------------------------------------------------
+            | ENCERRAR DESTE MÊS EM DIANTE
+            |--------------------------------------------------------------------------
+            | A regra deixa de gerar novos lançamentos.
+            | Pendentes deste mês em diante são removidos.
+            | Pagos permanecem no histórico.
+            */
+            if ($modoExclusao === 'encerrar_fixa') {
+                $quantidadeExcluida =
+                    DB::transaction(
+                        function () use (
+                            $request,
+                            $despesaFixa,
+                            $movimentacao,
+                            $competencia
+                        ) {
+                            $despesaFixa->update([
+                                'ativa' => false,
+                                'encerrada_em' =>
+                                    $competencia
+                                        ->format('Y-m-d'),
+                            ]);
+
+                            return Movimentacao::where(
+                                'user_id',
+                                $request->user()->id
+                            )
+                                ->where(
+                                    'despesa_fixa_id',
+                                    $movimentacao
+                                        ->despesa_fixa_id
+                                )
+                                ->whereDate(
+                                    'data',
+                                    '>=',
+                                    $competencia
+                                        ->format('Y-m-d')
+                                )
+                                ->where(
+                                    'status',
+                                    'pendente'
+                                )
+                                ->whereNull(
+                                    'data_pagamento'
+                                )
+                                ->delete();
+                        }
+                    );
+
+                return response()->json([
+                    'message' =>
+                        "Despesa fixa encerrada com sucesso. {$quantidadeExcluida} lançamento(s) pendente(s) removido(s).",
+                ]);
+            }
+
+            /*
+            |--------------------------------------------------------------------------
+            | SOMENTE ESTE MÊS
+            |--------------------------------------------------------------------------
+            */
+
+            /*
+            * Uma despesa paga deve permanecer
+            * no histórico financeiro.
+            */
+            if (
+                $movimentacao->status === 'pago'
+                || $movimentacao->data_pagamento
+            ) {
+                return response()->json([
+                    'message' =>
+                        'Este lançamento já foi pago e não pode ser excluído.',
+                ], 422);
+            }
+
+            /*
+            * Registra uma exceção para impedir que
+            * o gerador recrie este mesmo mês depois.
+            */
+            DB::transaction(
+                function () use (
+                    $movimentacao,
+                    $competencia
+                ): void {
+                    DespesaFixaExcecao::firstOrCreate([
+                        'despesa_fixa_id' =>
+                            $movimentacao
+                                ->despesa_fixa_id,
+
+                        'competencia' =>
+                            $competencia
+                                ->format('Y-m-d'),
+                    ]);
+
+                    $movimentacao->delete();
+                }
+            );
+
+            return response()->json([
+                'message' =>
+                    'Lançamento da despesa fixa excluído somente deste mês.',
+            ]);
+        }
         /*
         |--------------------------------------------------------------------------
         | DESPESA PARCELADA
