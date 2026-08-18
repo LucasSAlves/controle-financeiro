@@ -1465,3 +1465,506 @@ test('usuario nao pode excluir movimentacao normal de outro usuario', function (
         ]
     );
 });
+
+test('usuario pode editar parcela e aumentar quantidade total pela api', function () {
+    /** @var \Tests\TestCase $this */
+
+    $user = User::factory()->create();
+
+    Sanctum::actingAs($user, ['mobile']);
+
+    $grupo = 'grupo-parcelado-aumentar';
+
+    $parcela1 = \App\Models\Movimentacao::create([
+        'user_id' => $user->id,
+        'tipo' => 'despesa',
+        'descricao' => 'Notebook - Parcela 1/3',
+        'valor' => 100,
+        'data' => '2026-08-10',
+        'categoria' => 'Casa',
+        'forma_pagamento' => 'Cartao',
+        'status' => 'pendente',
+        'observacao' => null,
+        'parcelado' => true,
+        'parcela_fixa' => false,
+        'fixo_mensal' => false,
+        'parcela_atual' => 1,
+        'total_parcelas' => 3,
+        'grupo_parcelamento' => $grupo,
+        'data_pagamento' => null,
+    ]);
+
+    $parcela2 = \App\Models\Movimentacao::create([
+        'user_id' => $user->id,
+        'tipo' => 'despesa',
+        'descricao' => 'Notebook - Parcela 2/3',
+        'valor' => 100,
+        'data' => '2026-09-10',
+        'categoria' => 'Casa',
+        'forma_pagamento' => 'Cartao',
+        'status' => 'pendente',
+        'observacao' => null,
+        'parcelado' => true,
+        'parcela_fixa' => false,
+        'fixo_mensal' => false,
+        'parcela_atual' => 2,
+        'total_parcelas' => 3,
+        'grupo_parcelamento' => $grupo,
+        'data_pagamento' => null,
+    ]);
+
+    $parcela3 = \App\Models\Movimentacao::create([
+        'user_id' => $user->id,
+        'tipo' => 'despesa',
+        'descricao' => 'Notebook - Parcela 3/3',
+        'valor' => 100,
+        'data' => '2026-10-10',
+        'categoria' => 'Casa',
+        'forma_pagamento' => 'Cartao',
+        'status' => 'pendente',
+        'observacao' => null,
+        'parcelado' => true,
+        'parcela_fixa' => false,
+        'fixo_mensal' => false,
+        'parcela_atual' => 3,
+        'total_parcelas' => 3,
+        'grupo_parcelamento' => $grupo,
+        'data_pagamento' => null,
+    ]);
+
+    $response = $this->putJson(
+        "/api/v1/movimentacoes/{$parcela2->id}",
+        [
+            'tipo' => 'despesa',
+            'descricao' => 'Notebook atualizado - Parcela 2/3',
+            'valor' => 120,
+            'data' => '2026-09-15',
+            'categoria' => 'Casa',
+            'forma_pagamento' => 'Pix',
+            'status' => 'pendente',
+            'observacao' => 'Editado pelo app',
+            'total_parcelas' => 4,
+        ]
+    );
+
+    $response->assertOk();
+
+    expect(
+        \App\Models\Movimentacao::where(
+            'grupo_parcelamento',
+            $grupo
+        )->count()
+    )->toBe(4);
+
+    $parcela2->refresh();
+
+    expect((float) $parcela2->valor)
+        ->toBe(120.0);
+
+    expect($parcela2->data->toDateString())
+        ->toBe('2026-09-15');
+
+    expect($parcela2->forma_pagamento)
+        ->toBe('Pix');
+
+    expect($parcela2->descricao)
+        ->toBe('Notebook atualizado - Parcela 2/4');
+
+    $parcela1->refresh();
+    $parcela3->refresh();
+
+    expect((float) $parcela1->valor)
+        ->toBe(100.0);
+
+    expect((float) $parcela3->valor)
+        ->toBe(100.0);
+
+    expect($parcela1->total_parcelas)
+        ->toBe(4);
+
+    expect($parcela3->total_parcelas)
+        ->toBe(4);
+
+    $parcela4 = \App\Models\Movimentacao::where(
+        'grupo_parcelamento',
+        $grupo
+    )
+        ->where('parcela_atual', 4)
+        ->firstOrFail();
+
+    expect((float) $parcela4->valor)
+        ->toBe(120.0);
+
+    expect($parcela4->data->toDateString())
+        ->toBe('2026-11-10');
+});
+
+test('usuario pode reduzir parcelamento removendo somente parcelas excedentes pendentes', function () {
+    /** @var \Tests\TestCase $this */
+
+    $user = User::factory()->create();
+
+    Sanctum::actingAs($user, ['mobile']);
+
+    $grupo = 'grupo-parcelado-reduzir';
+
+    $parcelas = collect();
+
+    foreach (range(1, 4) as $numero) {
+        $parcelas->push(
+            \App\Models\Movimentacao::create([
+                'user_id' => $user->id,
+                'tipo' => 'despesa',
+                'descricao' =>
+                    "Compra - Parcela {$numero}/4",
+                'valor' => 50,
+                'data' => \Carbon\Carbon::create(
+                    2026,
+                    8,
+                    10
+                )
+                    ->addMonthsNoOverflow($numero - 1)
+                    ->format('Y-m-d'),
+                'categoria' => 'Casa',
+                'forma_pagamento' => 'Pix',
+                'status' => 'pendente',
+                'observacao' => null,
+                'parcelado' => true,
+                'parcela_fixa' => false,
+                'fixo_mensal' => false,
+                'parcela_atual' => $numero,
+                'total_parcelas' => 4,
+                'grupo_parcelamento' => $grupo,
+                'data_pagamento' => null,
+            ])
+        );
+    }
+
+    $parcela2 = $parcelas->get(1);
+    $parcela4 = $parcelas->get(3);
+
+    $response = $this->putJson(
+        "/api/v1/movimentacoes/{$parcela2->id}",
+        [
+            'tipo' => 'despesa',
+            'descricao' => 'Compra - Parcela 2/4',
+            'valor' => 50,
+            'data' => '2026-09-10',
+            'categoria' => 'Casa',
+            'forma_pagamento' => 'Pix',
+            'status' => 'pendente',
+            'observacao' => null,
+            'total_parcelas' => 3,
+        ]
+    );
+
+    $response->assertOk();
+
+    $this->assertDatabaseMissing(
+        'movimentacoes',
+        [
+            'id' => $parcela4->id,
+        ]
+    );
+
+    expect(
+        \App\Models\Movimentacao::where(
+            'grupo_parcelamento',
+            $grupo
+        )->count()
+    )->toBe(3);
+
+    expect(
+        \App\Models\Movimentacao::where(
+            'grupo_parcelamento',
+            $grupo
+        )
+            ->where('total_parcelas', 3)
+            ->count()
+    )->toBe(3);
+});
+
+test('api nao permite reduzir parcelamento removendo parcela ja paga', function () {
+    /** @var \Tests\TestCase $this */
+
+    $user = User::factory()->create();
+
+    Sanctum::actingAs($user, ['mobile']);
+
+    $grupo = 'grupo-parcelado-paga';
+
+    $parcela2 = null;
+    $parcela4 = null;
+
+    foreach (range(1, 4) as $numero) {
+        $movimentacao =
+            \App\Models\Movimentacao::create([
+                'user_id' => $user->id,
+                'tipo' => 'despesa',
+                'descricao' =>
+                    "Compra paga - Parcela {$numero}/4",
+                'valor' => 80,
+                'data' => \Carbon\Carbon::create(
+                    2026,
+                    8,
+                    10
+                )
+                    ->addMonthsNoOverflow($numero - 1)
+                    ->format('Y-m-d'),
+                'categoria' => 'Casa',
+                'forma_pagamento' => 'Pix',
+                'status' =>
+                    $numero === 4
+                        ? 'pago'
+                        : 'pendente',
+                'observacao' => null,
+                'parcelado' => true,
+                'parcela_fixa' => false,
+                'fixo_mensal' => false,
+                'parcela_atual' => $numero,
+                'total_parcelas' => 4,
+                'grupo_parcelamento' => $grupo,
+                'data_pagamento' =>
+                    $numero === 4
+                        ? '2026-11-10'
+                        : null,
+            ]);
+
+        if ($numero === 2) {
+            $parcela2 = $movimentacao;
+        }
+
+        if ($numero === 4) {
+            $parcela4 = $movimentacao;
+        }
+    }
+
+    $response = $this->putJson(
+        "/api/v1/movimentacoes/{$parcela2->id}",
+        [
+            'tipo' => 'despesa',
+            'descricao' =>
+                'Compra paga - Parcela 2/4',
+            'valor' => 80,
+            'data' => '2026-09-10',
+            'categoria' => 'Casa',
+            'forma_pagamento' => 'Pix',
+            'status' => 'pendente',
+            'observacao' => null,
+            'total_parcelas' => 3,
+        ]
+    );
+
+    $response->assertStatus(422);
+
+    $this->assertDatabaseHas(
+        'movimentacoes',
+        [
+            'id' => $parcela4->id,
+            'status' => 'pago',
+        ]
+    );
+
+    expect(
+        \App\Models\Movimentacao::where(
+            'grupo_parcelamento',
+            $grupo
+        )->count()
+    )->toBe(4);
+});
+
+test('usuario pode excluir somente parcela atual pendente pela api', function () {
+    /** @var \Tests\TestCase $this */
+
+    $user = User::factory()->create();
+
+    Sanctum::actingAs($user, ['mobile']);
+
+    $grupo = 'grupo-excluir-atual';
+
+    $parcelas = collect();
+
+    foreach (range(1, 3) as $numero) {
+        $parcelas->push(
+            \App\Models\Movimentacao::create([
+                'user_id' => $user->id,
+                'tipo' => 'despesa',
+                'descricao' =>
+                    "Excluir - Parcela {$numero}/3",
+                'valor' => 25,
+                'data' => \Carbon\Carbon::create(
+                    2026,
+                    8,
+                    10
+                )
+                    ->addMonthsNoOverflow($numero - 1)
+                    ->format('Y-m-d'),
+                'categoria' => 'Casa',
+                'forma_pagamento' => 'Pix',
+                'status' => 'pendente',
+                'observacao' => null,
+                'parcelado' => true,
+                'parcela_fixa' => false,
+                'fixo_mensal' => false,
+                'parcela_atual' => $numero,
+                'total_parcelas' => 3,
+                'grupo_parcelamento' => $grupo,
+                'data_pagamento' => null,
+            ])
+        );
+    }
+
+    $parcela2 = $parcelas->get(1);
+
+    $response = $this->deleteJson(
+        "/api/v1/movimentacoes/{$parcela2->id}",
+        [
+            'modo_exclusao' => 'atual',
+        ]
+    );
+
+    $response->assertOk();
+
+    $this->assertDatabaseMissing(
+        'movimentacoes',
+        [
+            'id' => $parcela2->id,
+        ]
+    );
+
+    expect(
+        \App\Models\Movimentacao::where(
+            'grupo_parcelamento',
+            $grupo
+        )->count()
+    )->toBe(2);
+});
+
+test('usuario pode excluir parcela atual e futuras pendentes preservando pagas', function () {
+    /** @var \Tests\TestCase $this */
+
+    $user = User::factory()->create();
+
+    Sanctum::actingAs($user, ['mobile']);
+
+    $grupo = 'grupo-excluir-futuras';
+
+    $parcelas = collect();
+
+    foreach (range(1, 4) as $numero) {
+        $parcelas->push(
+            \App\Models\Movimentacao::create([
+                'user_id' => $user->id,
+                'tipo' => 'despesa',
+                'descricao' =>
+                    "Excluir futuras - Parcela {$numero}/4",
+                'valor' => 30,
+                'data' => \Carbon\Carbon::create(
+                    2026,
+                    8,
+                    10
+                )
+                    ->addMonthsNoOverflow($numero - 1)
+                    ->format('Y-m-d'),
+                'categoria' => 'Casa',
+                'forma_pagamento' => 'Pix',
+                'status' =>
+                    $numero === 3
+                        ? 'pago'
+                        : 'pendente',
+                'observacao' => null,
+                'parcelado' => true,
+                'parcela_fixa' => false,
+                'fixo_mensal' => false,
+                'parcela_atual' => $numero,
+                'total_parcelas' => 4,
+                'grupo_parcelamento' => $grupo,
+                'data_pagamento' =>
+                    $numero === 3
+                        ? '2026-10-10'
+                        : null,
+            ])
+        );
+    }
+
+    $parcela2 = $parcelas->get(1);
+    $parcela3 = $parcelas->get(2);
+    $parcela4 = $parcelas->get(3);
+
+    $response = $this->deleteJson(
+        "/api/v1/movimentacoes/{$parcela2->id}",
+        [
+            'modo_exclusao' => 'futuras',
+        ]
+    );
+
+    $response->assertOk();
+
+    $this->assertDatabaseMissing(
+        'movimentacoes',
+        [
+            'id' => $parcela2->id,
+        ]
+    );
+
+    $this->assertDatabaseHas(
+        'movimentacoes',
+        [
+            'id' => $parcela3->id,
+            'status' => 'pago',
+        ]
+    );
+
+    $this->assertDatabaseMissing(
+        'movimentacoes',
+        [
+            'id' => $parcela4->id,
+        ]
+    );
+});
+
+test('api nao permite excluir parcela atual ja paga', function () {
+    /** @var \Tests\TestCase $this */
+
+    $user = User::factory()->create();
+
+    Sanctum::actingAs($user, ['mobile']);
+
+    $movimentacao =
+        \App\Models\Movimentacao::create([
+            'user_id' => $user->id,
+            'tipo' => 'despesa',
+            'descricao' => 'Parcela paga - Parcela 1/2',
+            'valor' => 40,
+            'data' => '2026-08-10',
+            'categoria' => 'Casa',
+            'forma_pagamento' => 'Pix',
+            'status' => 'pago',
+            'observacao' => null,
+            'parcelado' => true,
+            'parcela_fixa' => false,
+            'fixo_mensal' => false,
+            'parcela_atual' => 1,
+            'total_parcelas' => 2,
+            'grupo_parcelamento' =>
+                'grupo-parcela-paga',
+            'data_pagamento' => '2026-08-10',
+        ]);
+
+    $response = $this->deleteJson(
+        "/api/v1/movimentacoes/{$movimentacao->id}",
+        [
+            'modo_exclusao' => 'atual',
+        ]
+    );
+
+    $response->assertStatus(422);
+
+    $this->assertDatabaseHas(
+        'movimentacoes',
+        [
+            'id' => $movimentacao->id,
+            'status' => 'pago',
+        ]
+    );
+});

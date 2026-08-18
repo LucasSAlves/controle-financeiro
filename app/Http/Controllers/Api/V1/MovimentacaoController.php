@@ -587,14 +587,11 @@ public function update(
 
     /*
     |--------------------------------------------------------------------------
-    | Nesta primeira etapa, a API edita somente movimentações normais.
+    | Despesas e entradas fixas serão implementadas separadamente.
     |--------------------------------------------------------------------------
-    | Parceladas e recorrentes terão regras específicas implementadas
-    | separadamente para evitar alterações indevidas no grupo.
     */
     if (
-        $movimentacao->parcelado
-        || $movimentacao->parcela_fixa
+        $movimentacao->parcela_fixa
         || $movimentacao->fixo_mensal
     ) {
         return response()->json([
@@ -622,17 +619,18 @@ public function update(
             'required',
             'date',
         ],
-        'categoria' => $request->input('tipo') === 'despesa'
-            ? [
-                'required',
-                'string',
-                'max:255',
-            ]
-            : [
-                'nullable',
-                'string',
-                'max:255',
-            ],
+        'categoria' =>
+            $request->input('tipo') === 'despesa'
+                ? [
+                    'required',
+                    'string',
+                    'max:255',
+                ]
+                : [
+                    'nullable',
+                    'string',
+                    'max:255',
+                ],
         'forma_pagamento' =>
             $request->input('tipo') === 'despesa'
                 ? [
@@ -653,20 +651,576 @@ public function update(
             'nullable',
             'string',
         ],
+        'total_parcelas' => [
+            'nullable',
+            'integer',
+            'min:2',
+            'max:120',
+        ],
     ]);
 
+    /*
+    |--------------------------------------------------------------------------
+    | DESPESA PARCELADA
+    |--------------------------------------------------------------------------
+    */
+    if ($movimentacao->parcelado) {
+        if ($dados['tipo'] !== 'despesa') {
+            return response()->json([
+                'message' =>
+                    'Uma despesa parcelada nao pode ser transformada em entrada.',
+            ], 422);
+        }
+
+        if (!$movimentacao->grupo_parcelamento) {
+            return response()->json([
+                'message' =>
+                    'O grupo deste parcelamento nao foi encontrado.',
+            ], 422);
+        }
+
+        if (empty($dados['total_parcelas'])) {
+            return response()->json([
+                'message' =>
+                    'Informe a quantidade de parcelas.',
+            ], 422);
+        }
+
+        $novoTotalParcelas =
+            (int) $dados['total_parcelas'];
+
+        $parcelasDoGrupo =
+            Movimentacao::where(
+                'user_id',
+                $request->user()->id
+            )
+                ->where(
+                    'grupo_parcelamento',
+                    $movimentacao->grupo_parcelamento
+                )
+                ->orderBy('parcela_atual')
+                ->get();
+
+        if ($parcelasDoGrupo->isEmpty()) {
+            return response()->json([
+                'message' =>
+                    'Nenhuma parcela deste grupo foi encontrada.',
+            ], 422);
+        }
+
+        $totalParcelasAtual = (int) (
+            $parcelasDoGrupo->max(
+                'total_parcelas'
+            )
+            ?: $movimentacao->total_parcelas
+            ?: $parcelasDoGrupo->max(
+                'parcela_atual'
+            )
+        );
+
+        /*
+        * Antes de reduzir, verifica se alguma parcela
+        * que seria removida já está paga.
+        */
+        $parcelasPagasExcedentes =
+            $parcelasDoGrupo->filter(
+                function ($item) use (
+                    $novoTotalParcelas
+                ) {
+                    return (
+                        (int) $item->parcela_atual
+                            > $novoTotalParcelas
+                        && (
+                            $item->status === 'pago'
+                            || $item->data_pagamento
+                        )
+                    );
+                }
+            );
+
+        if (
+            $parcelasPagasExcedentes
+                ->isNotEmpty()
+        ) {
+            $numerosParcelas =
+                $parcelasPagasExcedentes
+                    ->pluck('parcela_atual')
+                    ->implode(', ');
+
+            return response()->json([
+                'message' =>
+                    "Nao e possivel reduzir para {$novoTotalParcelas} parcelas, pois a(s) parcela(s) {$numerosParcelas} ja esta(ao) paga(s).",
+            ], 422);
+        }
+
+        /*
+        * Retira do texto o sufixo:
+        * "- Parcela 2/4"
+        */
+        $descricaoBase = trim(
+            (string) preg_replace(
+                '/\s*-\s*Parcela\s+\d+\/\d+\s*$/i',
+                '',
+                $dados['descricao']
+            )
+        );
+
+        $numeroParcelaSelecionada =
+            (int) (
+                $movimentacao->parcela_atual
+                ?? 1
+            );
+
+        $parcelaSelecionadaSeraRemovida =
+            $numeroParcelaSelecionada
+                > $novoTotalParcelas;
+
+        DB::transaction(
+            function () use (
+                $request,
+                $dados,
+                $movimentacao,
+                $descricaoBase,
+                $novoTotalParcelas,
+                $totalParcelasAtual,
+                $numeroParcelaSelecionada,
+                $parcelaSelecionadaSeraRemovida
+            ) {
+                /*
+                * REDUZIR QUANTIDADE
+                *
+                * Remove somente parcelas excedentes
+                * que ainda estejam pendentes.
+                */
+                if (
+                    $novoTotalParcelas
+                        < $totalParcelasAtual
+                ) {
+                    Movimentacao::where(
+                        'user_id',
+                        $request->user()->id
+                    )
+                        ->where(
+                            'grupo_parcelamento',
+                            $movimentacao
+                                ->grupo_parcelamento
+                        )
+                        ->where(
+                            'parcela_atual',
+                            '>',
+                            $novoTotalParcelas
+                        )
+                        ->where(
+                            'status',
+                            'pendente'
+                        )
+                        ->whereNull(
+                            'data_pagamento'
+                        )
+                        ->delete();
+                }
+
+                /*
+                * Edita somente a parcela que foi aberta
+                * pelo usuário.
+                */
+                if (
+                    !$parcelaSelecionadaSeraRemovida
+                ) {
+                    $movimentacao->refresh();
+
+                    $status =
+                        $dados['status'] === 'pago'
+                            ? 'pago'
+                            : 'pendente';
+
+                    $movimentacao->update([
+                        'tipo' => 'despesa',
+
+                        'descricao' =>
+                            $descricaoBase
+                            . ' - Parcela '
+                            . $numeroParcelaSelecionada
+                            . '/'
+                            . $novoTotalParcelas,
+
+                        'valor' =>
+                            $dados['valor'],
+
+                        'data' =>
+                            $dados['data'],
+
+                        'categoria' =>
+                            $dados['categoria']
+                            ?? null,
+
+                        'forma_pagamento' =>
+                            $dados[
+                                'forma_pagamento'
+                            ]
+                            ?? null,
+
+                        'status' =>
+                            $status,
+
+                        'observacao' =>
+                            $dados['observacao']
+                            ?? null,
+
+                        'total_parcelas' =>
+                            $novoTotalParcelas,
+
+                        'data_pagamento' =>
+                            $status === 'pago'
+                                ? (
+                                    $movimentacao
+                                        ->data_pagamento
+                                        ? $movimentacao
+                                            ->data_pagamento
+                                            ->format(
+                                                'Y-m-d'
+                                            )
+                                        : now()
+                                            ->toDateString()
+                                )
+                                : null,
+                    ]);
+                }
+
+                /*
+                * AUMENTAR QUANTIDADE
+                *
+                * Cria somente as novas parcelas
+                * no final do grupo.
+                */
+                if (
+                    $novoTotalParcelas
+                        > $totalParcelasAtual
+                ) {
+                    $ultimaParcelaExistente =
+                        Movimentacao::where(
+                            'user_id',
+                            $request->user()->id
+                        )
+                            ->where(
+                                'grupo_parcelamento',
+                                $movimentacao
+                                    ->grupo_parcelamento
+                            )
+                            ->orderByDesc(
+                                'parcela_atual'
+                            )
+                            ->first();
+
+                    if (
+                        !$ultimaParcelaExistente
+                    ) {
+                        throw new \RuntimeException(
+                            'Nao foi possivel encontrar a ultima parcela.'
+                        );
+                    }
+
+                    for (
+                        $parcela =
+                            $totalParcelasAtual + 1;
+                        $parcela
+                            <= $novoTotalParcelas;
+                        $parcela++
+                    ) {
+                        $diferencaParcelas =
+                            $parcela
+                            - (int)
+                                $ultimaParcelaExistente
+                                    ->parcela_atual;
+
+                        $dataNovaParcela =
+                            $ultimaParcelaExistente
+                                ->data
+                                ->copy()
+                                ->addMonthsNoOverflow(
+                                    $diferencaParcelas
+                                );
+
+                        Movimentacao::firstOrCreate(
+                            [
+                                'user_id' =>
+                                    $request
+                                        ->user()
+                                        ->id,
+
+                                'grupo_parcelamento' =>
+                                    $movimentacao
+                                        ->grupo_parcelamento,
+
+                                'parcela_atual' =>
+                                    $parcela,
+                            ],
+                            [
+                                'tipo' =>
+                                    'despesa',
+
+                                'descricao' =>
+                                    $descricaoBase
+                                    . ' - Parcela '
+                                    . $parcela
+                                    . '/'
+                                    . $novoTotalParcelas,
+
+                                'valor' =>
+                                    $dados['valor'],
+
+                                'data' =>
+                                    $dataNovaParcela
+                                        ->format(
+                                            'Y-m-d'
+                                        ),
+
+                                'categoria' =>
+                                    $dados[
+                                        'categoria'
+                                    ]
+                                    ?? null,
+
+                                'forma_pagamento' =>
+                                    $dados[
+                                        'forma_pagamento'
+                                    ]
+                                    ?? null,
+
+                                'status' =>
+                                    'pendente',
+
+                                'observacao' =>
+                                    $dados[
+                                        'observacao'
+                                    ]
+                                    ?? null,
+
+                                'parcelado' =>
+                                    true,
+
+                                'parcela_fixa' =>
+                                    false,
+
+                                'fixo_mensal' =>
+                                    false,
+
+                                'mes_atual' =>
+                                    null,
+
+                                'total_meses' =>
+                                    null,
+
+                                'total_parcelas' =>
+                                    $novoTotalParcelas,
+
+                                'grupo_fixo_mensal' =>
+                                    null,
+
+                                'despesa_fixa_id' =>
+                                    null,
+
+                                'entrada_fixa_id' =>
+                                    null,
+
+                                'data_pagamento' =>
+                                    null,
+
+                                'aviso_vencimento_enviado_em' =>
+                                    null,
+                            ]
+                        );
+                    }
+                }
+
+                /*
+                * Atualiza a identificação de todas
+                * as parcelas restantes:
+                *
+                * Parcela 1/4
+                * Parcela 2/4
+                * Parcela 3/4...
+                */
+                $parcelasAtualizadas =
+                    Movimentacao::where(
+                        'user_id',
+                        $request->user()->id
+                    )
+                        ->where(
+                            'grupo_parcelamento',
+                            $movimentacao
+                                ->grupo_parcelamento
+                        )
+                        ->orderBy(
+                            'parcela_atual'
+                        )
+                        ->get();
+
+                foreach (
+                    $parcelasAtualizadas
+                    as $item
+                ) {
+                    $numeroParcela =
+                        (int)
+                            $item
+                                ->parcela_atual;
+
+                    $item->update([
+                        'descricao' =>
+                            $descricaoBase
+                            . ' - Parcela '
+                            . $numeroParcela
+                            . '/'
+                            . $novoTotalParcelas,
+
+                        'total_parcelas' =>
+                            $novoTotalParcelas,
+                    ]);
+                }
+            }
+        );
+
+        $movimentacaoAtualizada =
+            Movimentacao::where(
+                'user_id',
+                $request->user()->id
+            )
+                ->where(
+                    'id',
+                    $movimentacao->id
+                )
+                ->first();
+
+        $mensagem =
+            $novoTotalParcelas
+                === $totalParcelasAtual
+                ? 'Parcela atualizada com sucesso.'
+                : "Parcelamento atualizado de {$totalParcelasAtual} para {$novoTotalParcelas} parcelas.";
+
+        return response()->json([
+            'message' => $mensagem,
+
+            'movimentacao' =>
+                $movimentacaoAtualizada
+                    ? [
+                        'id' =>
+                            $movimentacaoAtualizada
+                                ->id,
+
+                        'tipo' =>
+                            $movimentacaoAtualizada
+                                ->tipo,
+
+                        'descricao' =>
+                            $movimentacaoAtualizada
+                                ->descricao,
+
+                        'valor' =>
+                            $movimentacaoAtualizada
+                                ->valor,
+
+                        'data' =>
+                            $movimentacaoAtualizada
+                                ->data
+                                ->format(
+                                    'Y-m-d'
+                                ),
+
+                        'data_pagamento' =>
+                            $movimentacaoAtualizada
+                                ->data_pagamento
+                                ? $movimentacaoAtualizada
+                                    ->data_pagamento
+                                    ->format(
+                                        'Y-m-d'
+                                    )
+                                : null,
+
+                        'categoria' =>
+                            $movimentacaoAtualizada
+                                ->categoria,
+
+                        'forma_pagamento' =>
+                            $movimentacaoAtualizada
+                                ->forma_pagamento,
+
+                        'status' =>
+                            $movimentacaoAtualizada
+                                ->status,
+
+                        'observacao' =>
+                            $movimentacaoAtualizada
+                                ->observacao,
+
+                        'parcelado' =>
+                            $movimentacaoAtualizada
+                                ->parcelado,
+
+                        'parcela_fixa' =>
+                            $movimentacaoAtualizada
+                                ->parcela_fixa,
+
+                        'fixo_mensal' =>
+                            $movimentacaoAtualizada
+                                ->fixo_mensal,
+
+                        'despesa_fixa_id' =>
+                            $movimentacaoAtualizada
+                                ->despesa_fixa_id,
+
+                        'entrada_fixa_id' =>
+                            $movimentacaoAtualizada
+                                ->entrada_fixa_id,
+
+                        'parcela_atual' =>
+                            $movimentacaoAtualizada
+                                ->parcela_atual,
+
+                        'total_parcelas' =>
+                            $movimentacaoAtualizada
+                                ->total_parcelas,
+
+                        'grupo_parcelamento' =>
+                            $movimentacaoAtualizada
+                                ->grupo_parcelamento,
+
+                        'mes_atual' =>
+                            $movimentacaoAtualizada
+                                ->mes_atual,
+
+                        'total_meses' =>
+                            $movimentacaoAtualizada
+                                ->total_meses,
+
+                        'grupo_fixo_mensal' =>
+                            $movimentacaoAtualizada
+                                ->grupo_fixo_mensal,
+                    ]
+                    : null,
+        ]);
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | MOVIMENTAÇÃO NORMAL
+    |--------------------------------------------------------------------------
+    */
     if ($dados['tipo'] === 'despesa') {
-        $dados['status'] = $dados['status'] === 'pago'
-            ? 'pago'
-            : 'pendente';
+        $dados['status'] =
+            $dados['status'] === 'pago'
+                ? 'pago'
+                : 'pendente';
 
         if ($dados['status'] === 'pago') {
             $dados['data_pagamento'] =
                 $movimentacao->data_pagamento
-                    ? $movimentacao->data_pagamento->format('Y-m-d')
+                    ? $movimentacao
+                        ->data_pagamento
+                        ->format('Y-m-d')
                     : now()->toDateString();
         } else {
-            $dados['data_pagamento'] = null;
+            $dados['data_pagamento'] =
+                null;
         }
     }
 
@@ -676,41 +1230,92 @@ public function update(
         $dados['data_pagamento'] = null;
     }
 
+    unset(
+        $dados['total_parcelas']
+    );
+
     $movimentacao->update($dados);
     $movimentacao->refresh();
 
     return response()->json([
-        'message' => 'Movimentacao atualizada com sucesso.',
+        'message' =>
+            'Movimentacao atualizada com sucesso.',
+
         'movimentacao' => [
-            'id' => $movimentacao->id,
-            'tipo' => $movimentacao->tipo,
-            'descricao' => $movimentacao->descricao,
-            'valor' => $movimentacao->valor,
-            'data' => $movimentacao->data->format('Y-m-d'),
-            'data_pagamento' => $movimentacao->data_pagamento
-                ? $movimentacao->data_pagamento->format('Y-m-d')
-                : null,
-            'categoria' => $movimentacao->categoria,
-            'forma_pagamento' => $movimentacao->forma_pagamento,
-            'status' => $movimentacao->status,
-            'observacao' => $movimentacao->observacao,
+            'id' =>
+                $movimentacao->id,
 
-            'parcelado' => $movimentacao->parcelado,
-            'parcela_fixa' => $movimentacao->parcela_fixa,
-            'fixo_mensal' => $movimentacao->fixo_mensal,
+            'tipo' =>
+                $movimentacao->tipo,
 
-            'despesa_fixa_id' => $movimentacao->despesa_fixa_id,
-            'entrada_fixa_id' => $movimentacao->entrada_fixa_id,
+            'descricao' =>
+                $movimentacao->descricao,
 
-            'parcela_atual' => $movimentacao->parcela_atual,
-            'total_parcelas' => $movimentacao->total_parcelas,
+            'valor' =>
+                $movimentacao->valor,
+
+            'data' =>
+                $movimentacao->data
+                    ->format('Y-m-d'),
+
+            'data_pagamento' =>
+                $movimentacao->data_pagamento
+                    ? $movimentacao
+                        ->data_pagamento
+                        ->format('Y-m-d')
+                    : null,
+
+            'categoria' =>
+                $movimentacao->categoria,
+
+            'forma_pagamento' =>
+                $movimentacao
+                    ->forma_pagamento,
+
+            'status' =>
+                $movimentacao->status,
+
+            'observacao' =>
+                $movimentacao->observacao,
+
+            'parcelado' =>
+                $movimentacao->parcelado,
+
+            'parcela_fixa' =>
+                $movimentacao->parcela_fixa,
+
+            'fixo_mensal' =>
+                $movimentacao->fixo_mensal,
+
+            'despesa_fixa_id' =>
+                $movimentacao
+                    ->despesa_fixa_id,
+
+            'entrada_fixa_id' =>
+                $movimentacao
+                    ->entrada_fixa_id,
+
+            'parcela_atual' =>
+                $movimentacao
+                    ->parcela_atual,
+
+            'total_parcelas' =>
+                $movimentacao
+                    ->total_parcelas,
+
             'grupo_parcelamento' =>
-                $movimentacao->grupo_parcelamento,
+                $movimentacao
+                    ->grupo_parcelamento,
 
-            'mes_atual' => $movimentacao->mes_atual,
-            'total_meses' => $movimentacao->total_meses,
+            'mes_atual' =>
+                $movimentacao->mes_atual,
+
+            'total_meses' =>
+                $movimentacao->total_meses,
+
             'grupo_fixo_mensal' =>
-                $movimentacao->grupo_fixo_mensal,
+                $movimentacao
+                    ->grupo_fixo_mensal,
         ],
     ]);
 }
@@ -773,12 +1378,11 @@ public function update(
 
         /*
         |--------------------------------------------------------------------------
-        | Nesta primeira etapa, exclui somente movimentações normais.
+        | Fixas ainda serão implementadas separadamente.
         |--------------------------------------------------------------------------
         */
         if (
-            $movimentacao->parcelado
-            || $movimentacao->parcela_fixa
+            $movimentacao->parcela_fixa
             || $movimentacao->fixo_mensal
         ) {
             return response()->json([
@@ -787,10 +1391,107 @@ public function update(
             ], 422);
         }
 
+        /*
+        |--------------------------------------------------------------------------
+        | DESPESA PARCELADA
+        |--------------------------------------------------------------------------
+        */
+        if ($movimentacao->parcelado) {
+            $modoExclusao =
+                $request->input(
+                    'modo_exclusao',
+                    'atual'
+                );
+
+            if (
+                !in_array(
+                    $modoExclusao,
+                    [
+                        'atual',
+                        'futuras',
+                    ],
+                    true
+                )
+            ) {
+                $modoExclusao = 'atual';
+            }
+
+            /*
+            * Exclui a parcela selecionada e todas
+            * as próximas que ainda estão pendentes.
+            *
+            * Parcelas pagas são preservadas.
+            */
+            if ($modoExclusao === 'futuras') {
+                $quantidadeExcluida =
+                    Movimentacao::where(
+                        'user_id',
+                        $request->user()->id
+                    )
+                        ->where(
+                            'grupo_parcelamento',
+                            $movimentacao
+                                ->grupo_parcelamento
+                        )
+                        ->where(
+                            'parcela_atual',
+                            '>=',
+                            $movimentacao
+                                ->parcela_atual
+                        )
+                        ->where(
+                            'status',
+                            'pendente'
+                        )
+                        ->whereNull(
+                            'data_pagamento'
+                        )
+                        ->delete();
+
+                if ($quantidadeExcluida === 0) {
+                    return response()->json([
+                        'message' =>
+                            'Nenhuma parcela foi excluida. Parcelas pagas nao podem ser apagadas.',
+                    ], 422);
+                }
+
+                return response()->json([
+                    'message' =>
+                        "{$quantidadeExcluida} parcela(s) excluida(s) com sucesso. Parcelas pagas foram mantidas.",
+                ]);
+            }
+
+            /*
+            * Excluir somente a parcela atual.
+            */
+            if (
+                $movimentacao->status === 'pago'
+                || $movimentacao->data_pagamento
+            ) {
+                return response()->json([
+                    'message' =>
+                        'Esta parcela ja foi paga e nao pode ser excluida.',
+                ], 422);
+            }
+
+            $movimentacao->delete();
+
+            return response()->json([
+                'message' =>
+                    'Parcela excluida com sucesso.',
+            ]);
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | MOVIMENTAÇÃO NORMAL
+        |--------------------------------------------------------------------------
+        */
         $movimentacao->delete();
 
         return response()->json([
-            'message' => 'Movimentacao excluida com sucesso.',
+            'message' =>
+                'Movimentacao excluida com sucesso.',
         ]);
     }
 }
