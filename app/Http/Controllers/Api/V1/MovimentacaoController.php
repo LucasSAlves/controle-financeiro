@@ -744,12 +744,24 @@ public function update(
         ) {
             $numerosParcelas =
                 $parcelasPagasExcedentes
-                    ->pluck('parcela_atual')
-                    ->implode(', ');
+                    ->pluck('parcela_atual');
+
+            $quantidadeParcelasPagas =
+                $numerosParcelas->count();
+
+            $parcelasFormatadas =
+                $numerosParcelas->implode(', ');
+
+            if ($quantidadeParcelasPagas === 1) {
+                $mensagem =
+                    "Não é possível reduzir o parcelamento para {$novoTotalParcelas} parcelas porque a parcela {$parcelasFormatadas} já está paga.";
+            } else {
+                $mensagem =
+                    "Não é possível reduzir o parcelamento para {$novoTotalParcelas} parcelas porque as parcelas {$parcelasFormatadas} já estão pagas.";
+            }
 
             return response()->json([
-                'message' =>
-                    "Nao e possivel reduzir para {$novoTotalParcelas} parcelas, pois a(s) parcela(s) {$numerosParcelas} ja esta(ao) paga(s).",
+                'message' => $mensagem,
             ], 422);
         }
 
