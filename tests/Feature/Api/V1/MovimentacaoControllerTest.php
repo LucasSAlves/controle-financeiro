@@ -1192,3 +1192,276 @@ test('usuario nao pode marcar despesa de outro usuario como paga', function () {
         ]
     );
 });
+
+test('usuario pode editar despesa normal propria pela api', function () {
+    /** @var \Tests\TestCase $this */
+
+    $user = User::factory()->create();
+
+    Sanctum::actingAs(
+        $user,
+        ['mobile']
+    );
+
+    $movimentacao = \App\Models\Movimentacao::create([
+        'user_id' => $user->id,
+        'tipo' => 'despesa',
+        'descricao' => 'Conta antiga',
+        'valor' => 100,
+        'data' => '2026-08-10',
+        'categoria' => 'Casa',
+        'forma_pagamento' => 'Pix',
+        'status' => 'pendente',
+        'observacao' => null,
+        'parcelado' => false,
+        'parcela_fixa' => false,
+        'fixo_mensal' => false,
+        'data_pagamento' => null,
+    ]);
+
+    $response = $this->putJson(
+        "/api/v1/movimentacoes/{$movimentacao->id}",
+        [
+            'tipo' => 'despesa',
+            'descricao' => 'Conta atualizada',
+            'valor' => 150,
+            'data' => '2026-08-20',
+            'categoria' => 'Casa',
+            'forma_pagamento' => 'Cartao',
+            'status' => 'pago',
+            'observacao' => 'Editada pelo app',
+        ]
+    );
+
+    $response
+        ->assertOk()
+        ->assertJsonPath(
+            'message',
+            'Movimentacao atualizada com sucesso.'
+        )
+        ->assertJsonPath(
+            'movimentacao.descricao',
+            'Conta atualizada'
+        )
+        ->assertJsonPath(
+            'movimentacao.status',
+            'pago'
+        );
+
+    $movimentacao->refresh();
+
+    expect($movimentacao->descricao)
+        ->toBe('Conta atualizada');
+
+    expect((float) $movimentacao->valor)
+        ->toBe(150.0);
+
+    expect($movimentacao->data->toDateString())
+        ->toBe('2026-08-20');
+
+    expect($movimentacao->forma_pagamento)
+        ->toBe('Cartao');
+
+    expect($movimentacao->status)
+        ->toBe('pago');
+
+    expect(
+        $movimentacao->data_pagamento
+            ? $movimentacao->data_pagamento
+                ->toDateString()
+            : null
+    )->toBe(
+        now()->toDateString()
+    );
+});
+
+test('edicao de entrada normal mantem status recebido e sem forma de pagamento', function () {
+    /** @var \Tests\TestCase $this */
+
+    $user = User::factory()->create();
+
+    Sanctum::actingAs(
+        $user,
+        ['mobile']
+    );
+
+    $movimentacao = \App\Models\Movimentacao::create([
+        'user_id' => $user->id,
+        'tipo' => 'entrada',
+        'descricao' => 'Entrada antiga',
+        'valor' => 500,
+        'data' => '2026-08-10',
+        'categoria' => 'Salario',
+        'forma_pagamento' => null,
+        'status' => 'recebido',
+        'observacao' => null,
+        'parcelado' => false,
+        'parcela_fixa' => false,
+        'fixo_mensal' => false,
+        'data_pagamento' => null,
+    ]);
+
+    $response = $this->putJson(
+        "/api/v1/movimentacoes/{$movimentacao->id}",
+        [
+            'tipo' => 'entrada',
+            'descricao' => 'Entrada atualizada',
+            'valor' => 600,
+            'data' => '2026-08-21',
+            'categoria' => 'Salario',
+            'forma_pagamento' => 'Pix',
+            'status' => 'pendente',
+            'observacao' => 'Teste entrada',
+        ]
+    );
+
+    $response->assertOk();
+
+    $movimentacao->refresh();
+
+    expect($movimentacao->status)
+        ->toBe('recebido');
+
+    expect($movimentacao->forma_pagamento)
+        ->toBeNull();
+
+    expect($movimentacao->data_pagamento)
+        ->toBeNull();
+});
+
+test('usuario nao pode editar movimentacao normal de outro usuario', function () {
+    /** @var \Tests\TestCase $this */
+
+    $user = User::factory()->create();
+    $outroUsuario = User::factory()->create();
+
+    Sanctum::actingAs(
+        $user,
+        ['mobile']
+    );
+
+    $movimentacao = \App\Models\Movimentacao::create([
+        'user_id' => $outroUsuario->id,
+        'tipo' => 'despesa',
+        'descricao' => 'Movimentacao protegida',
+        'valor' => 100,
+        'data' => '2026-08-10',
+        'categoria' => 'Casa',
+        'forma_pagamento' => 'Pix',
+        'status' => 'pendente',
+        'observacao' => null,
+        'parcelado' => false,
+        'parcela_fixa' => false,
+        'fixo_mensal' => false,
+        'data_pagamento' => null,
+    ]);
+
+    $response = $this->putJson(
+        "/api/v1/movimentacoes/{$movimentacao->id}",
+        [
+            'tipo' => 'despesa',
+            'descricao' => 'Tentativa',
+            'valor' => 200,
+            'data' => '2026-08-20',
+            'categoria' => 'Casa',
+            'forma_pagamento' => 'Pix',
+            'status' => 'pendente',
+            'observacao' => null,
+        ]
+    );
+
+    $response->assertNotFound();
+
+    $movimentacao->refresh();
+
+    expect($movimentacao->descricao)
+        ->toBe('Movimentacao protegida');
+});
+
+test('usuario pode excluir movimentacao normal propria pela api', function () {
+    /** @var \Tests\TestCase $this */
+
+    $user = User::factory()->create();
+
+    Sanctum::actingAs(
+        $user,
+        ['mobile']
+    );
+
+    $movimentacao = \App\Models\Movimentacao::create([
+        'user_id' => $user->id,
+        'tipo' => 'despesa',
+        'descricao' => 'Excluir pelo app',
+        'valor' => 50,
+        'data' => '2026-08-10',
+        'categoria' => 'Casa',
+        'forma_pagamento' => 'Pix',
+        'status' => 'pendente',
+        'observacao' => null,
+        'parcelado' => false,
+        'parcela_fixa' => false,
+        'fixo_mensal' => false,
+        'data_pagamento' => null,
+    ]);
+
+    $response = $this->deleteJson(
+        "/api/v1/movimentacoes/{$movimentacao->id}"
+    );
+
+    $response
+        ->assertOk()
+        ->assertJsonPath(
+            'message',
+            'Movimentacao excluida com sucesso.'
+        );
+
+    $this->assertDatabaseMissing(
+        'movimentacoes',
+        [
+            'id' => $movimentacao->id,
+            'user_id' => $user->id,
+        ]
+    );
+});
+
+test('usuario nao pode excluir movimentacao normal de outro usuario', function () {
+    /** @var \Tests\TestCase $this */
+
+    $user = User::factory()->create();
+    $outroUsuario = User::factory()->create();
+
+    Sanctum::actingAs(
+        $user,
+        ['mobile']
+    );
+
+    $movimentacao = \App\Models\Movimentacao::create([
+        'user_id' => $outroUsuario->id,
+        'tipo' => 'despesa',
+        'descricao' => 'Nao excluir',
+        'valor' => 50,
+        'data' => '2026-08-10',
+        'categoria' => 'Casa',
+        'forma_pagamento' => 'Pix',
+        'status' => 'pendente',
+        'observacao' => null,
+        'parcelado' => false,
+        'parcela_fixa' => false,
+        'fixo_mensal' => false,
+        'data_pagamento' => null,
+    ]);
+
+    $response = $this->deleteJson(
+        "/api/v1/movimentacoes/{$movimentacao->id}"
+    );
+
+    $response->assertNotFound();
+
+    $this->assertDatabaseHas(
+        'movimentacoes',
+        [
+            'id' => $movimentacao->id,
+            'user_id' => $outroUsuario->id,
+        ]
+    );
+});

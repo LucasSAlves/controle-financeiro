@@ -31,6 +31,16 @@ Route::prefix('v1')->group(function () {
             'show',
         ]);
 
+        Route::put('/movimentacoes/{id}', [
+            MovimentacaoController::class,
+            'update',
+        ]);
+
+        Route::delete('/movimentacoes/{id}', [
+            MovimentacaoController::class,
+            'destroy',
+        ]);
+
         Route::patch('/movimentacoes/{id}/pagar', [
             MovimentacaoController::class,
             'marcarComoPago',

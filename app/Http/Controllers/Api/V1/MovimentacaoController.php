@@ -13,6 +13,7 @@ use App\Services\GerarEntradasFixasMensais;
 use App\Services\GerarMovimentacoesFixasAteCompetencia;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -573,12 +574,151 @@ public function show(
     ]);
 }
 
+public function update(
+    Request $request,
+    string $id
+): JsonResponse {
+    $movimentacao = Movimentacao::where(
+        'user_id',
+        $request->user()->id
+    )
+        ->where('id', $id)
+        ->firstOrFail();
+
+    /*
+    |--------------------------------------------------------------------------
+    | Nesta primeira etapa, a API edita somente movimentações normais.
+    |--------------------------------------------------------------------------
+    | Parceladas e recorrentes terão regras específicas implementadas
+    | separadamente para evitar alterações indevidas no grupo.
+    */
+    if (
+        $movimentacao->parcelado
+        || $movimentacao->parcela_fixa
+        || $movimentacao->fixo_mensal
+    ) {
+        return response()->json([
+            'message' =>
+                'Esta movimentacao possui regras especiais de edicao.',
+        ], 422);
+    }
+
+    $dados = $request->validate([
+        'tipo' => [
+            'required',
+            'in:entrada,despesa',
+        ],
+        'descricao' => [
+            'required',
+            'string',
+            'max:255',
+        ],
+        'valor' => [
+            'required',
+            'numeric',
+            'min:0.01',
+        ],
+        'data' => [
+            'required',
+            'date',
+        ],
+        'categoria' => $request->input('tipo') === 'despesa'
+            ? [
+                'required',
+                'string',
+                'max:255',
+            ]
+            : [
+                'nullable',
+                'string',
+                'max:255',
+            ],
+        'forma_pagamento' =>
+            $request->input('tipo') === 'despesa'
+                ? [
+                    'required',
+                    'string',
+                    'max:255',
+                ]
+                : [
+                    'nullable',
+                    'string',
+                    'max:255',
+                ],
+        'status' => [
+            'required',
+            'in:pago,pendente,recebido',
+        ],
+        'observacao' => [
+            'nullable',
+            'string',
+        ],
+    ]);
+
+    if ($dados['tipo'] === 'despesa') {
+        $dados['status'] = $dados['status'] === 'pago'
+            ? 'pago'
+            : 'pendente';
+
+        if ($dados['status'] === 'pago') {
+            $dados['data_pagamento'] =
+                $movimentacao->data_pagamento
+                    ? $movimentacao->data_pagamento->format('Y-m-d')
+                    : now()->toDateString();
+        } else {
+            $dados['data_pagamento'] = null;
+        }
+    }
+
+    if ($dados['tipo'] === 'entrada') {
+        $dados['status'] = 'recebido';
+        $dados['forma_pagamento'] = null;
+        $dados['data_pagamento'] = null;
+    }
+
+    $movimentacao->update($dados);
+    $movimentacao->refresh();
+
+    return response()->json([
+        'message' => 'Movimentacao atualizada com sucesso.',
+        'movimentacao' => [
+            'id' => $movimentacao->id,
+            'tipo' => $movimentacao->tipo,
+            'descricao' => $movimentacao->descricao,
+            'valor' => $movimentacao->valor,
+            'data' => $movimentacao->data->format('Y-m-d'),
+            'data_pagamento' => $movimentacao->data_pagamento
+                ? $movimentacao->data_pagamento->format('Y-m-d')
+                : null,
+            'categoria' => $movimentacao->categoria,
+            'forma_pagamento' => $movimentacao->forma_pagamento,
+            'status' => $movimentacao->status,
+            'observacao' => $movimentacao->observacao,
+
+            'parcelado' => $movimentacao->parcelado,
+            'parcela_fixa' => $movimentacao->parcela_fixa,
+            'fixo_mensal' => $movimentacao->fixo_mensal,
+
+            'despesa_fixa_id' => $movimentacao->despesa_fixa_id,
+            'entrada_fixa_id' => $movimentacao->entrada_fixa_id,
+
+            'parcela_atual' => $movimentacao->parcela_atual,
+            'total_parcelas' => $movimentacao->total_parcelas,
+            'grupo_parcelamento' =>
+                $movimentacao->grupo_parcelamento,
+
+            'mes_atual' => $movimentacao->mes_atual,
+            'total_meses' => $movimentacao->total_meses,
+            'grupo_fixo_mensal' =>
+                $movimentacao->grupo_fixo_mensal,
+        ],
+    ]);
+}
+
     /**
      * Marca uma despesa como paga.
      */
-    public function marcarComoPago(
-        string $id
-    ): JsonResponse {
+    public function marcarComoPago( string $id): JsonResponse {
         $user = request()->user();
 
         $movimentacao = Movimentacao::query()
@@ -614,6 +754,43 @@ public function show(
                             ->format('Y-m-d')
                         : null,
             ],
+        ]);
+    }
+
+    /**
+     * Exclui uma movimentação do usuário autenticado.
+     */
+    public function destroy(
+        Request $request,
+        string $id
+    ): JsonResponse {
+        $movimentacao = Movimentacao::where(
+            'user_id',
+            $request->user()->id
+        )
+            ->where('id', $id)
+            ->firstOrFail();
+
+        /*
+        |--------------------------------------------------------------------------
+        | Nesta primeira etapa, exclui somente movimentações normais.
+        |--------------------------------------------------------------------------
+        */
+        if (
+            $movimentacao->parcelado
+            || $movimentacao->parcela_fixa
+            || $movimentacao->fixo_mensal
+        ) {
+            return response()->json([
+                'message' =>
+                    'Esta movimentacao possui regras especiais de exclusao.',
+            ], 422);
+        }
+
+        $movimentacao->delete();
+
+        return response()->json([
+            'message' => 'Movimentacao excluida com sucesso.',
         ]);
     }
 }
