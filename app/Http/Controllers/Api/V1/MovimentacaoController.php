@@ -8,6 +8,7 @@ use App\Http\Requests\Api\V1\MovimentacaoStoreRequest;
 use App\Models\DespesaFixa;
 use App\Models\DespesaFixaExcecao;
 use App\Models\EntradaFixa;
+use App\Models\EntradaFixaExcecao;
 use App\Models\Movimentacao;
 use App\Services\GerarDespesasFixasMensais;
 use App\Services\GerarEntradasFixasMensais;
@@ -18,7 +19,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
-class MovimentacaoController extends Controller {
+class MovimentacaoController extends Controller
+{
     /**
      * Retorna as movimentações do mês selecionado.
      */
@@ -94,51 +96,51 @@ class MovimentacaoController extends Controller {
                         ->format('Y-m-d'),
 
                     'data_pagamento' =>
-                        $movimentacao->data_pagamento
-                            ? $movimentacao->data_pagamento
-                                ->format('Y-m-d')
-                            : null,
+                    $movimentacao->data_pagamento
+                        ? $movimentacao->data_pagamento
+                        ->format('Y-m-d')
+                        : null,
 
                     'categoria' => $movimentacao->categoria,
 
                     'forma_pagamento' =>
-                        $movimentacao->forma_pagamento,
+                    $movimentacao->forma_pagamento,
 
                     'status' => $movimentacao->status,
                     'observacao' => $movimentacao->observacao,
 
                     'parcelado' =>
-                        (bool) $movimentacao->parcelado,
+                    (bool) $movimentacao->parcelado,
 
                     'parcela_fixa' =>
-                        (bool) $movimentacao->parcela_fixa,
+                    (bool) $movimentacao->parcela_fixa,
 
                     'fixo_mensal' =>
-                        (bool) $movimentacao->fixo_mensal,
+                    (bool) $movimentacao->fixo_mensal,
 
                     'despesa_fixa_id' =>
-                        $movimentacao->despesa_fixa_id,
+                    $movimentacao->despesa_fixa_id,
 
                     'entrada_fixa_id' =>
-                        $movimentacao->entrada_fixa_id,
+                    $movimentacao->entrada_fixa_id,
 
                     'parcela_atual' =>
-                        $movimentacao->parcela_atual,
+                    $movimentacao->parcela_atual,
 
                     'total_parcelas' =>
-                        $movimentacao->total_parcelas,
+                    $movimentacao->total_parcelas,
 
                     'grupo_parcelamento' =>
-                        $movimentacao->grupo_parcelamento,
+                    $movimentacao->grupo_parcelamento,
 
                     'mes_atual' =>
-                        $movimentacao->mes_atual,
+                    $movimentacao->mes_atual,
 
                     'total_meses' =>
-                        $movimentacao->total_meses,
+                    $movimentacao->total_meses,
 
                     'grupo_fixo_mensal' =>
-                        $movimentacao->grupo_fixo_mensal,
+                    $movimentacao->grupo_fixo_mensal,
                 ];
             })
             ->values();
@@ -184,7 +186,7 @@ class MovimentacaoController extends Controller {
             'movimentacoes' => $movimentacoes,
         ]);
     }
-        /**
+    /**
      * Cadastra uma nova movimentação pelo aplicativo.
      */
     public function store(
@@ -220,13 +222,13 @@ class MovimentacaoController extends Controller {
                     'descricao' => $dados['descricao'],
                     'valor' => $dados['valor'],
                     'data_inicio' =>
-                        $dataInicio->format('Y-m-d'),
+                    $dataInicio->format('Y-m-d'),
                     'dia_recebimento' =>
-                        $dataInicio->day,
+                    $dataInicio->day,
                     'categoria' =>
-                        $dados['categoria'] ?? null,
+                    $dados['categoria'] ?? null,
                     'observacao' =>
-                        $dados['observacao'] ?? null,
+                    $dados['observacao'] ?? null,
                     'ativa' => true,
                     'encerrada_em' => null,
                 ]);
@@ -239,7 +241,7 @@ class MovimentacaoController extends Controller {
 
             return response()->json([
                 'message' =>
-                    'Entrada fixa mensal cadastrada com sucesso.',
+                'Entrada fixa mensal cadastrada com sucesso.',
             ], 201);
         }
 
@@ -264,15 +266,15 @@ class MovimentacaoController extends Controller {
                     'descricao' => $dados['descricao'],
                     'valor' => $dados['valor'],
                     'data_inicio' =>
-                        $dataInicio->format('Y-m-d'),
+                    $dataInicio->format('Y-m-d'),
                     'dia_vencimento' =>
-                        $dataInicio->day,
+                    $dataInicio->day,
                     'categoria' =>
-                        $dados['categoria'] ?? null,
+                    $dados['categoria'] ?? null,
                     'forma_pagamento' =>
-                        $dados['forma_pagamento'] ?? null,
+                    $dados['forma_pagamento'] ?? null,
                     'observacao' =>
-                        $dados['observacao'] ?? null,
+                    $dados['observacao'] ?? null,
                     'ativa' => true,
                     'encerrada_em' => null,
                 ]);
@@ -285,7 +287,7 @@ class MovimentacaoController extends Controller {
 
             return response()->json([
                 'message' =>
-                    'Despesa fixa mensal cadastrada com sucesso.',
+                'Despesa fixa mensal cadastrada com sucesso.',
             ], 201);
         }
 
@@ -310,20 +312,20 @@ class MovimentacaoController extends Controller {
                 'data' => $dados['data'],
 
                 'categoria' =>
-                    $dados['categoria'] ?? null,
+                $dados['categoria'] ?? null,
 
                 'forma_pagamento' =>
-                    $dados['tipo'] === 'entrada'
-                        ? null
-                        : ($dados['forma_pagamento'] ?? null),
+                $dados['tipo'] === 'entrada'
+                    ? null
+                    : ($dados['forma_pagamento'] ?? null),
 
                 'status' =>
-                    $dados['tipo'] === 'entrada'
-                        ? 'recebido'
-                        : $dados['status'],
+                $dados['tipo'] === 'entrada'
+                    ? 'recebido'
+                    : $dados['status'],
 
                 'observacao' =>
-                    $dados['observacao'] ?? null,
+                $dados['observacao'] ?? null,
 
                 'parcelado' => false,
                 'parcela_fixa' => false,
@@ -343,37 +345,37 @@ class MovimentacaoController extends Controller {
 
             return response()->json([
                 'message' =>
-                    'Movimentação cadastrada com sucesso.',
+                'Movimentação cadastrada com sucesso.',
 
                 'movimentacao' => [
                     'id' => $movimentacao->id,
                     'tipo' => $movimentacao->tipo,
                     'descricao' =>
-                        $movimentacao->descricao,
+                    $movimentacao->descricao,
                     'valor' =>
-                        (float) $movimentacao->valor,
+                    (float) $movimentacao->valor,
                     'data' =>
-                        $movimentacao->data
-                            ->format('Y-m-d'),
+                    $movimentacao->data
+                        ->format('Y-m-d'),
 
                     'data_pagamento' =>
-                        $movimentacao->data_pagamento
-                            ? $movimentacao
-                                ->data_pagamento
-                                ->format('Y-m-d')
-                            : null,
+                    $movimentacao->data_pagamento
+                        ? $movimentacao
+                        ->data_pagamento
+                        ->format('Y-m-d')
+                        : null,
 
                     'categoria' =>
-                        $movimentacao->categoria,
+                    $movimentacao->categoria,
 
                     'forma_pagamento' =>
-                        $movimentacao->forma_pagamento,
+                    $movimentacao->forma_pagamento,
 
                     'status' =>
-                        $movimentacao->status,
+                    $movimentacao->status,
 
                     'observacao' =>
-                        $movimentacao->observacao,
+                    $movimentacao->observacao,
                 ],
             ], 201);
         }
@@ -433,15 +435,15 @@ class MovimentacaoController extends Controller {
                         ->format('Y-m-d'),
 
                     'categoria' =>
-                        $dados['categoria'] ?? null,
+                    $dados['categoria'] ?? null,
 
                     'forma_pagamento' =>
-                        $dados['forma_pagamento'] ?? null,
+                    $dados['forma_pagamento'] ?? null,
 
                     'status' => 'pendente',
 
                     'observacao' =>
-                        $dados['observacao'] ?? null,
+                    $dados['observacao'] ?? null,
 
                     'parcelado' => true,
                     'parcela_fixa' => false,
@@ -452,10 +454,10 @@ class MovimentacaoController extends Controller {
 
                     'parcela_atual' => $parcela,
                     'total_parcelas' =>
-                        $totalParcelas,
+                    $totalParcelas,
 
                     'grupo_parcelamento' =>
-                        $grupoParcelamento,
+                    $grupoParcelamento,
 
                     'grupo_fixo_mensal' => null,
 
@@ -464,223 +466,224 @@ class MovimentacaoController extends Controller {
 
                 $parcelasCriadas[] = [
                     'id' =>
-                        $movimentacao->id,
+                    $movimentacao->id,
 
                     'parcela_atual' =>
-                        $parcela,
+                    $parcela,
 
                     'total_parcelas' =>
-                        $totalParcelas,
+                    $totalParcelas,
 
                     'descricao' =>
-                        $movimentacao->descricao,
+                    $movimentacao->descricao,
 
                     'valor' =>
-                        (float) $movimentacao->valor,
+                    (float) $movimentacao->valor,
 
                     'data' =>
-                        $movimentacao->data
-                            ->format('Y-m-d'),
+                    $movimentacao->data
+                        ->format('Y-m-d'),
                 ];
             }
         });
 
         return response()->json([
             'message' =>
-                'Compra parcelada cadastrada com sucesso.',
+            'Compra parcelada cadastrada com sucesso.',
 
             'grupo_parcelamento' =>
-                $grupoParcelamento,
+            $grupoParcelamento,
 
             'parcelas' =>
-                $parcelasCriadas,
+            $parcelasCriadas,
         ], 201);
     }
     /**
- * Retorna os detalhes de uma movimentação
- * pertencente ao usuário autenticado.
- */
+     * Retorna os detalhes de uma movimentação
+     * pertencente ao usuário autenticado.
+     */
 
-    public function show( string $id): JsonResponse {
-    $user = request()->user();
+    public function show(string $id): JsonResponse
+    {
+        $user = request()->user();
 
-    $movimentacao = Movimentacao::query()
-        ->where('user_id', $user->id)
-        ->where('id', $id)
-        ->firstOrFail();
+        $movimentacao = Movimentacao::query()
+            ->where('user_id', $user->id)
+            ->where('id', $id)
+            ->firstOrFail();
 
-    return response()->json([
-        'movimentacao' => [
-            'id' => $movimentacao->id,
-            'tipo' => $movimentacao->tipo,
-            'descricao' => $movimentacao->descricao,
-            'valor' => (float) $movimentacao->valor,
+        return response()->json([
+            'movimentacao' => [
+                'id' => $movimentacao->id,
+                'tipo' => $movimentacao->tipo,
+                'descricao' => $movimentacao->descricao,
+                'valor' => (float) $movimentacao->valor,
 
-            'data' => $movimentacao->data
-                ->format('Y-m-d'),
+                'data' => $movimentacao->data
+                    ->format('Y-m-d'),
 
-            'data_pagamento' =>
+                'data_pagamento' =>
                 $movimentacao->data_pagamento
                     ? $movimentacao->data_pagamento
-                        ->format('Y-m-d')
+                    ->format('Y-m-d')
                     : null,
 
-            'categoria' =>
+                'categoria' =>
                 $movimentacao->categoria,
 
-            'forma_pagamento' =>
+                'forma_pagamento' =>
                 $movimentacao->forma_pagamento,
 
-            'status' =>
+                'status' =>
                 $movimentacao->status,
 
-            'observacao' =>
+                'observacao' =>
                 $movimentacao->observacao,
 
-            'parcelado' =>
+                'parcelado' =>
                 (bool) $movimentacao->parcelado,
 
-            'parcela_fixa' =>
+                'parcela_fixa' =>
                 (bool) $movimentacao->parcela_fixa,
 
-            'fixo_mensal' =>
+                'fixo_mensal' =>
                 (bool) $movimentacao->fixo_mensal,
 
-            'despesa_fixa_id' =>
+                'despesa_fixa_id' =>
                 $movimentacao->despesa_fixa_id,
 
-            'entrada_fixa_id' =>
+                'entrada_fixa_id' =>
                 $movimentacao->entrada_fixa_id,
 
-            'parcela_atual' =>
+                'parcela_atual' =>
                 $movimentacao->parcela_atual,
 
-            'total_parcelas' =>
+                'total_parcelas' =>
                 $movimentacao->total_parcelas,
 
-            'grupo_parcelamento' =>
+                'grupo_parcelamento' =>
                 $movimentacao->grupo_parcelamento,
 
-            'mes_atual' =>
+                'mes_atual' =>
                 $movimentacao->mes_atual,
 
-            'total_meses' =>
+                'total_meses' =>
                 $movimentacao->total_meses,
 
-            'grupo_fixo_mensal' =>
+                'grupo_fixo_mensal' =>
                 $movimentacao->grupo_fixo_mensal,
-        ],
-    ]);
-}
-
-private function atualizarDespesaFixa(
-    Request $request,
-    Movimentacao $movimentacao,
-    array $dados,
-    string $modoEdicao,
-): JsonResponse {
-    $userId = (int) $request->user()->id;
-
-    if ($dados['tipo'] !== 'despesa') {
-        return response()->json([
-            'message' =>
-                'Uma despesa fixa não pode ser transformada em entrada.',
-        ], 422);
+            ],
+        ]);
     }
 
-    $dataInformada =
-        \Carbon\Carbon::parse(
-            $dados['data']
-        );
+    private function atualizarDespesaFixa(
+        Request $request,
+        Movimentacao $movimentacao,
+        array $dados,
+        string $modoEdicao,
+    ): JsonResponse {
+        $userId = (int) $request->user()->id;
 
-    $competenciaAtual =
-        $movimentacao->data
+        if ($dados['tipo'] !== 'despesa') {
+            return response()->json([
+                'message' =>
+                'Uma despesa fixa não pode ser transformada em entrada.',
+            ], 422);
+        }
+
+        $dataInformada =
+            \Carbon\Carbon::parse(
+                $dados['data']
+            );
+
+        $competenciaAtual =
+            $movimentacao->data
             ->copy()
             ->startOfMonth();
 
-    /*
+        /*
     * Pode alterar o dia do vencimento,
     * mas não mudar o mês/ano do lançamento.
     */
-    if (
-        !$dataInformada
-            ->isSameMonth(
-                $competenciaAtual
-            )
-    ) {
-        return response()->json([
-            'message' =>
+        if (
+            !$dataInformada
+                ->isSameMonth(
+                    $competenciaAtual
+                )
+        ) {
+            return response()->json([
+                'message' =>
                 'Para uma despesa fixa, altere somente o dia do vencimento, mantendo o mesmo mês e ano.',
-        ], 422);
-    }
+            ], 422);
+        }
 
-    /*
+        /*
     |--------------------------------------------------------------------------
     | SOMENTE ESTE MÊS
     |--------------------------------------------------------------------------
     */
-    if ($modoEdicao === 'atual') {
-        $status =
-            $dados['status'] === 'pago'
+        if ($modoEdicao === 'atual') {
+            $status =
+                $dados['status'] === 'pago'
                 ? 'pago'
                 : 'pendente';
 
-        $movimentacao->update([
-            'tipo' => 'despesa',
-            'descricao' =>
+            $movimentacao->update([
+                'tipo' => 'despesa',
+                'descricao' =>
                 $dados['descricao'],
-            'valor' =>
+                'valor' =>
                 $dados['valor'],
-            'data' =>
+                'data' =>
                 $dataInformada
                     ->format('Y-m-d'),
-            'categoria' =>
+                'categoria' =>
                 $dados['categoria']
-                ?? null,
-            'forma_pagamento' =>
+                    ?? null,
+                'forma_pagamento' =>
                 $dados['forma_pagamento']
-                ?? null,
-            'status' =>
+                    ?? null,
+                'status' =>
                 $status,
-            'observacao' =>
+                'observacao' =>
                 $dados['observacao']
-                ?? null,
-            'data_pagamento' =>
+                    ?? null,
+                'data_pagamento' =>
                 $status === 'pago'
                     ? (
                         $movimentacao
-                            ->data_pagamento
-                            ? $movimentacao
-                                ->data_pagamento
-                                ->format('Y-m-d')
-                            : now()
-                                ->toDateString()
+                        ->data_pagamento
+                        ? $movimentacao
+                        ->data_pagamento
+                        ->format('Y-m-d')
+                        : now()
+                        ->toDateString()
                     )
                     : null,
-        ]);
+            ]);
 
-        $movimentacao->refresh();
+            $movimentacao->refresh();
 
-        return response()->json([
-            'message' =>
+            return response()->json([
+                'message' =>
                 'Despesa fixa atualizada somente neste mês.',
-            'movimentacao' =>
+                'movimentacao' =>
                 $this->movimentacaoParaApi(
                     $movimentacao
                 ),
-        ]);
-    }
+            ]);
+        }
 
-    /*
+        /*
     |--------------------------------------------------------------------------
     | ESTE MÊS E OS PRÓXIMOS
     |--------------------------------------------------------------------------
     */
-    $despesaFixaAtual =
-        DespesaFixa::where(
-            'user_id',
-            $userId
-        )
+        $despesaFixaAtual =
+            DespesaFixa::where(
+                'user_id',
+                $userId
+            )
             ->where(
                 'id',
                 $movimentacao
@@ -688,83 +691,83 @@ private function atualizarDespesaFixa(
             )
             ->first();
 
-    if (!$despesaFixaAtual) {
-        return response()->json([
-            'message' =>
+        if (!$despesaFixaAtual) {
+            return response()->json([
+                'message' =>
                 'A regra desta despesa fixa não foi encontrada.',
-        ], 422);
-    }
+            ], 422);
+        }
 
-    $grupoRecorrencia =
-        $despesaFixaAtual
+        $grupoRecorrencia =
+            $despesaFixaAtual
             ->grupo_recorrencia;
 
-    if (!$grupoRecorrencia) {
-        return response()->json([
-            'message' =>
+        if (!$grupoRecorrencia) {
+            return response()->json([
+                'message' =>
                 'O grupo desta despesa fixa não foi encontrado.',
-        ], 422);
-    }
+            ], 422);
+        }
 
-    DB::transaction(
-        function () use (
-            $userId,
-            $dados,
-            $movimentacao,
-            $despesaFixaAtual,
-            $dataInformada,
-            $competenciaAtual,
-            $grupoRecorrencia
-        ): void {
-            /*
+        DB::transaction(
+            function () use (
+                $userId,
+                $dados,
+                $movimentacao,
+                $despesaFixaAtual,
+                $dataInformada,
+                $competenciaAtual,
+                $grupoRecorrencia
+            ): void {
+                /*
             * Pega todas as versões anteriores
             * desta mesma recorrência.
             */
-            $idsRegrasDoGrupo =
-                DespesaFixa::where(
-                    'user_id',
-                    $userId
-                )
+                $idsRegrasDoGrupo =
+                    DespesaFixa::where(
+                        'user_id',
+                        $userId
+                    )
                     ->where(
                         'grupo_recorrencia',
                         $grupoRecorrencia
                     )
                     ->pluck('id');
 
-            $statusSolicitado =
-                $dados['status'] === 'pago'
+                $statusSolicitado =
+                    $dados['status'] === 'pago'
                     ? 'pago'
                     : 'pendente';
 
-            $movimentacaoEstavaPaga =
-                $movimentacao->status
+                $movimentacaoEstavaPaga =
+                    $movimentacao->status
                     === 'pago'
-                || $movimentacao
+                    || $movimentacao
                     ->data_pagamento;
 
-            /*
+                /*
             * Se o mês selecionado já estiver pago
             * e continuar Pago, preserva o histórico.
             * A nova regra passa a valer no mês seguinte.
             */
-            $preservarMesPago =
-                $movimentacaoEstavaPaga
-                && $statusSolicitado
+                $preservarMesPago =
+                    $movimentacaoEstavaPaga
+                    && $statusSolicitado
                     === 'pago';
 
-            $competenciaNovaRegra =
-                $preservarMesPago
+                $competenciaNovaRegra =
+                    $preservarMesPago
                     ? $competenciaAtual
-                        ->copy()
-                        ->addMonth()
+                    ->copy()
+                    ->addMonth()
                     : $competenciaAtual
-                        ->copy();
+                    ->copy();
 
-            $diaVencimento =
-                $dataInformada->day;
+                $diaVencimento =
+                    $dataInformada->day;
 
-            $dataInicioNovaRegra =
-                $competenciaNovaRegra
+                $dataInicioNovaRegra =
+                    $competenciaNovaRegra
                     ->copy()
                     ->day(
                         min(
@@ -774,85 +777,83 @@ private function atualizarDespesaFixa(
                         )
                     );
 
-            /*
+                /*
             * Encerra qualquer versão ainda ativa
             * desta mesma recorrência.
             */
-            DespesaFixa::where(
-                'user_id',
-                $userId
-            )
-                ->where(
-                    'grupo_recorrencia',
-                    $grupoRecorrencia
+                DespesaFixa::where(
+                    'user_id',
+                    $userId
                 )
-                ->where(
-                    'ativa',
-                    true
-                )
-                ->update([
-                    'ativa' => false,
-                    'encerrada_em' =>
+                    ->where(
+                        'grupo_recorrencia',
+                        $grupoRecorrencia
+                    )
+                    ->where(
+                        'ativa',
+                        true
+                    )
+                    ->update([
+                        'ativa' => false,
+                        'encerrada_em' =>
                         $competenciaNovaRegra
                             ->copy()
                             ->startOfMonth()
                             ->format('Y-m-d'),
-                ]);
+                    ]);
 
-            /*
+                /*
             * Cria a nova regra.
             */
-            $novaDespesaFixa =
-                DespesaFixa::create([
-                    'user_id' =>
+                $novaDespesaFixa =
+                    DespesaFixa::create([
+                        'user_id' =>
                         $userId,
 
-                    'grupo_recorrencia' =>
+                        'grupo_recorrencia' =>
                         $grupoRecorrencia,
 
-                    'descricao' =>
+                        'descricao' =>
                         $dados['descricao'],
 
-                    'valor' =>
+                        'valor' =>
                         $dados['valor'],
 
-                    'data_inicio' =>
+                        'data_inicio' =>
                         $dataInicioNovaRegra
                             ->format('Y-m-d'),
 
-                    'dia_vencimento' =>
+                        'dia_vencimento' =>
                         $diaVencimento,
 
-                    'categoria' =>
+                        'categoria' =>
                         $dados['categoria']
-                        ?? null,
+                            ?? null,
 
-                    'forma_pagamento' =>
-                        $dados[
-                            'forma_pagamento'
-                        ]
-                        ?? null,
+                        'forma_pagamento' =>
+                        $dados['forma_pagamento']
+                            ?? null,
 
-                    'observacao' =>
+                        'observacao' =>
                         $dados['observacao']
-                        ?? null,
+                            ?? null,
 
-                    'ativa' =>
+                        'ativa' =>
                         true,
 
-                    'encerrada_em' =>
+                        'encerrada_em' =>
                         null,
-                ]);
+                    ]);
 
-            /*
+                /*
             * Mantém as competências que o usuário
             * já havia excluído anteriormente.
             */
-            $competenciasIgnoradas =
-                DespesaFixaExcecao::whereIn(
-                    'despesa_fixa_id',
-                    $idsRegrasDoGrupo
-                )
+                $competenciasIgnoradas =
+                    DespesaFixaExcecao::whereIn(
+                        'despesa_fixa_id',
+                        $idsRegrasDoGrupo
+                    )
                     ->whereDate(
                         'competencia',
                         '>=',
@@ -875,41 +876,41 @@ private function atualizarDespesaFixa(
                     )
                     ->unique();
 
-            foreach (
-                $competenciasIgnoradas
-                as $competenciaIgnorada
-            ) {
-                DespesaFixaExcecao::firstOrCreate([
-                    'despesa_fixa_id' =>
+                foreach (
+                    $competenciasIgnoradas
+                    as $competenciaIgnorada
+                ) {
+                    DespesaFixaExcecao::firstOrCreate([
+                        'despesa_fixa_id' =>
                         $novaDespesaFixa->id,
 
-                    'competencia' =>
+                        'competencia' =>
                         $competenciaIgnorada,
-                ]);
-            }
+                    ]);
+                }
 
-            DespesaFixaExcecao::whereIn(
-                'despesa_fixa_id',
-                $idsRegrasDoGrupo
-            )
-                ->whereDate(
-                    'competencia',
-                    '>=',
-                    $competenciaNovaRegra
-                        ->format('Y-m-d')
+                DespesaFixaExcecao::whereIn(
+                    'despesa_fixa_id',
+                    $idsRegrasDoGrupo
                 )
-                ->delete();
+                    ->whereDate(
+                        'competencia',
+                        '>=',
+                        $competenciaNovaRegra
+                            ->format('Y-m-d')
+                    )
+                    ->delete();
 
-            /*
+                /*
             * Atualiza somente lançamentos pendentes
             * do mês de início da nova regra em diante.
             * Lançamentos pagos permanecem históricos.
             */
-            $movimentacoesFuturas =
-                Movimentacao::where(
-                    'user_id',
-                    $userId
-                )
+                $movimentacoesFuturas =
+                    Movimentacao::where(
+                        'user_id',
+                        $userId
+                    )
                     ->whereIn(
                         'despesa_fixa_id',
                         $idsRegrasDoGrupo
@@ -929,17 +930,17 @@ private function atualizarDespesaFixa(
                     )
                     ->get();
 
-            foreach (
-                $movimentacoesFuturas
-                as $item
-            ) {
-                $competenciaItem =
-                    $item->data
+                foreach (
+                    $movimentacoesFuturas
+                    as $item
+                ) {
+                    $competenciaItem =
+                        $item->data
                         ->copy()
                         ->startOfMonth();
 
-                $novaDataItem =
-                    $competenciaItem
+                    $novaDataItem =
+                        $competenciaItem
                         ->copy()
                         ->day(
                             min(
@@ -949,379 +950,727 @@ private function atualizarDespesaFixa(
                             )
                         );
 
-                $item->update([
-                    'despesa_fixa_id' =>
+                    $item->update([
+                        'despesa_fixa_id' =>
                         $novaDespesaFixa->id,
 
-                    'tipo' =>
+                        'tipo' =>
                         'despesa',
 
-                    'descricao' =>
+                        'descricao' =>
                         $dados['descricao'],
 
-                    'valor' =>
+                        'valor' =>
                         $dados['valor'],
 
-                    'data' =>
+                        'data' =>
                         $novaDataItem
                             ->format('Y-m-d'),
 
-                    'categoria' =>
+                        'categoria' =>
                         $dados['categoria']
-                        ?? null,
+                            ?? null,
 
-                    'forma_pagamento' =>
-                        $dados[
-                            'forma_pagamento'
-                        ]
-                        ?? null,
+                        'forma_pagamento' =>
+                        $dados['forma_pagamento']
+                            ?? null,
 
-                    'observacao' =>
+                        'observacao' =>
                         $dados['observacao']
-                        ?? null,
+                            ?? null,
 
-                    'parcelado' =>
+                        'parcelado' =>
                         false,
 
-                    'parcela_fixa' =>
+                        'parcela_fixa' =>
                         true,
 
-                    'fixo_mensal' =>
+                        'fixo_mensal' =>
                         false,
 
-                    'parcela_atual' =>
+                        'parcela_atual' =>
                         null,
 
-                    'total_parcelas' =>
+                        'total_parcelas' =>
                         null,
 
-                    'grupo_parcelamento' =>
+                        'grupo_parcelamento' =>
                         null,
 
-                    'grupo_fixo_mensal' =>
+                        'grupo_fixo_mensal' =>
                         null,
-                ]);
-            }
+                    ]);
+                }
 
-            /*
+                /*
             * Se o mês aberto não precisar ser
             * preservado como histórico pago,
             * também o atualizamos.
             */
-            if (!$preservarMesPago) {
-                $movimentacao->refresh();
+                if (!$preservarMesPago) {
+                    $movimentacao->refresh();
 
-                $movimentacao->update([
-                    'despesa_fixa_id' =>
+                    $movimentacao->update([
+                        'despesa_fixa_id' =>
                         $novaDespesaFixa->id,
 
-                    'tipo' =>
+                        'tipo' =>
                         'despesa',
 
-                    'descricao' =>
+                        'descricao' =>
                         $dados['descricao'],
 
-                    'valor' =>
+                        'valor' =>
                         $dados['valor'],
 
-                    'data' =>
+                        'data' =>
                         $dataInformada
                             ->format('Y-m-d'),
 
-                    'categoria' =>
+                        'categoria' =>
                         $dados['categoria']
-                        ?? null,
+                            ?? null,
 
-                    'forma_pagamento' =>
-                        $dados[
-                            'forma_pagamento'
-                        ]
-                        ?? null,
+                        'forma_pagamento' =>
+                        $dados['forma_pagamento']
+                            ?? null,
 
-                    'status' =>
+                        'status' =>
                         $statusSolicitado,
 
-                    'observacao' =>
+                        'observacao' =>
                         $dados['observacao']
-                        ?? null,
+                            ?? null,
 
-                    'parcelado' =>
+                        'parcelado' =>
                         false,
 
-                    'parcela_fixa' =>
+                        'parcela_fixa' =>
                         true,
 
-                    'fixo_mensal' =>
+                        'fixo_mensal' =>
                         false,
 
-                    'parcela_atual' =>
+                        'parcela_atual' =>
                         null,
 
-                    'total_parcelas' =>
+                        'total_parcelas' =>
                         null,
 
-                    'grupo_parcelamento' =>
+                        'grupo_parcelamento' =>
                         null,
 
-                    'grupo_fixo_mensal' =>
+                        'grupo_fixo_mensal' =>
                         null,
 
-                    'data_pagamento' =>
+                        'data_pagamento' =>
                         $statusSolicitado
                             === 'pago'
                             ? (
                                 $movimentacao
-                                    ->data_pagamento
-                                    ? $movimentacao
-                                        ->data_pagamento
-                                        ->format(
-                                            'Y-m-d'
-                                        )
-                                    : now()
-                                        ->toDateString()
+                                ->data_pagamento
+                                ? $movimentacao
+                                ->data_pagamento
+                                ->format(
+                                    'Y-m-d'
+                                )
+                                : now()
+                                ->toDateString()
                             )
                             : null,
-                ]);
+                    ]);
+                }
             }
-        }
-    );
+        );
 
-    $movimentacao->refresh();
+        $movimentacao->refresh();
 
-    return response()->json([
-        'message' =>
+        return response()->json([
+            'message' =>
             'Despesa fixa atualizada neste mês e nos próximos.',
-        'movimentacao' =>
+
+            'movimentacao' =>
             $this->movimentacaoParaApi(
                 $movimentacao
             ),
-    ]);
-}
+        ]);
+    }
 
-private function movimentacaoParaApi(
-    Movimentacao $movimentacao
-): array {
-    return [
-        'id' =>
-            $movimentacao->id,
+    private function atualizarEntradaFixa(
+        Request $request,
+        Movimentacao $movimentacao,
+        array $dados,
+        string $modoEdicao,
+    ): JsonResponse {
+        $userId = (int) $request->user()->id;
 
-        'tipo' =>
-            $movimentacao->tipo,
+        if ($dados['tipo'] !== 'entrada') {
+            return response()->json([
+                'message' =>
+                'Uma entrada fixa não pode ser transformada em despesa.',
+            ], 422);
+        }
 
-        'descricao' =>
-            $movimentacao->descricao,
+        $dataInformada =
+            \Carbon\Carbon::parse(
+                $dados['data']
+            );
 
-        'valor' =>
-            $movimentacao->valor,
-
-        'data' =>
+        $competenciaAtual =
             $movimentacao->data
-                ->format('Y-m-d'),
+            ->copy()
+            ->startOfMonth();
 
-        'data_pagamento' =>
-            $movimentacao->data_pagamento
-                ? $movimentacao
-                    ->data_pagamento
-                    ->format('Y-m-d')
-                : null,
+        /*
+        * Pode alterar o dia do recebimento,
+        * mas não mudar o mês/ano.
+        */
+        if (
+            !$dataInformada->isSameMonth(
+                $competenciaAtual
+            )
+        ) {
+            return response()->json([
+                'message' =>
+                'Para uma entrada fixa, altere somente o dia do recebimento, mantendo o mesmo mês e ano.',
+            ], 422);
+        }
 
-        'categoria' =>
-            $movimentacao->categoria,
+        /*
+        |--------------------------------------------------------------------------
+        | SOMENTE ESTE MÊS
+        |--------------------------------------------------------------------------
+        */
+        if ($modoEdicao === 'atual') {
+            $movimentacao->update([
+                'tipo' =>
+                'entrada',
 
-        'forma_pagamento' =>
-            $movimentacao
-                ->forma_pagamento,
+                'descricao' =>
+                $dados['descricao'],
 
-        'status' =>
-            $movimentacao->status,
+                'valor' =>
+                $dados['valor'],
 
-        'observacao' =>
-            $movimentacao->observacao,
+                'data' =>
+                $dataInformada
+                    ->format('Y-m-d'),
 
-        'parcelado' =>
-            $movimentacao->parcelado,
+                'categoria' =>
+                $dados['categoria']
+                    ?? null,
 
-        'parcela_fixa' =>
-            $movimentacao->parcela_fixa,
+                'forma_pagamento' =>
+                null,
 
-        'fixo_mensal' =>
-            $movimentacao->fixo_mensal,
+                'status' =>
+                'recebido',
 
-        'despesa_fixa_id' =>
-            $movimentacao
-                ->despesa_fixa_id,
+                'observacao' =>
+                $dados['observacao']
+                    ?? null,
 
-        'entrada_fixa_id' =>
-            $movimentacao
-                ->entrada_fixa_id,
+                'data_pagamento' =>
+                null,
+            ]);
 
-        'parcela_atual' =>
-            $movimentacao
-                ->parcela_atual,
+            $movimentacao->refresh();
 
-        'total_parcelas' =>
-            $movimentacao
-                ->total_parcelas,
+            return response()->json([
+                'message' =>
+                'Entrada fixa atualizada somente neste mês.',
 
-        'grupo_parcelamento' =>
-            $movimentacao
-                ->grupo_parcelamento,
+                'movimentacao' =>
+                $this->movimentacaoParaApi(
+                    $movimentacao
+                ),
+            ]);
+        }
 
-        'mes_atual' =>
-            $movimentacao->mes_atual,
+        /*
+        |--------------------------------------------------------------------------
+        | ESTE MÊS E OS PRÓXIMOS
+        |--------------------------------------------------------------------------
+        */
+        if ($modoEdicao === 'futuros_fixa') {
+            $entradaFixaAtual =
+                EntradaFixa::where(
+                    'user_id',
+                    $userId
+                )
+                ->where(
+                    'id',
+                    $movimentacao
+                        ->entrada_fixa_id
+                )
+                ->first();
 
-        'total_meses' =>
-            $movimentacao
-                ->total_meses,
+            if (!$entradaFixaAtual) {
+                return response()->json([
+                    'message' =>
+                    'A regra desta entrada fixa não foi encontrada.',
+                ], 422);
+            }
 
-        'grupo_fixo_mensal' =>
-            $movimentacao
-                ->grupo_fixo_mensal,
-    ];
-}
+            DB::transaction(
+                function () use (
+                    $userId,
+                    $dados,
+                    $movimentacao,
+                    $entradaFixaAtual,
+                    $dataInformada,
+                    $competenciaAtual
+                ): void {
+                    /*
+                    * A nova regra começa exatamente
+                    * no mês selecionado.
+                    */
+                    $competenciaNovaRegra =
+                        $competenciaAtual
+                        ->copy()
+                        ->startOfMonth();
 
-public function update(
-    Request $request,
-    string $id): JsonResponse {
-    $movimentacao = Movimentacao::where(
-        'user_id',
-        $request->user()->id
-    )
-        ->where('id', $id)
-        ->firstOrFail();
+                    $diaRecebimento =
+                        $dataInformada->day;
 
-    /*
-    |--------------------------------------------------------------------------
-    | Despesas e entradas fixas.
-    |--------------------------------------------------------------------------
-    */
-    if ($movimentacao->fixo_mensal) {
+                    $dataInicioNovaRegra =
+                        $competenciaNovaRegra
+                        ->copy()
+                        ->day(
+                            min(
+                                $diaRecebimento,
+                                $competenciaNovaRegra
+                                    ->daysInMonth
+                            )
+                        );
+
+                    /*
+                    * A regra antiga passa a valer
+                    * somente para os meses anteriores.
+                    */
+                    $entradaFixaAtual->update([
+                        'ativa' =>
+                        false,
+
+                        'encerrada_em' =>
+                        $competenciaNovaRegra
+                            ->format('Y-m-d'),
+                    ]);
+
+                    /*
+                    * Cria a nova versão da recorrência.
+                    */
+                    $novaEntradaFixa =
+                        EntradaFixa::create([
+                            'user_id' =>
+                            $userId,
+
+                            'grupo_recorrencia' =>
+                            $entradaFixaAtual
+                                ->grupo_recorrencia,
+
+                            'descricao' =>
+                            $dados['descricao'],
+
+                            'valor' =>
+                            $dados['valor'],
+
+                            'data_inicio' =>
+                            $dataInicioNovaRegra
+                                ->format('Y-m-d'),
+
+                            'dia_recebimento' =>
+                            $diaRecebimento,
+
+                            'categoria' =>
+                            $dados['categoria']
+                                ?? null,
+
+                            'observacao' =>
+                            $dados['observacao']
+                                ?? null,
+
+                            'ativa' =>
+                            true,
+
+                            'encerrada_em' =>
+                            null,
+                        ]);
+
+                    /*
+                    * Transfere para a nova regra
+                    * as competências já ignoradas.
+                    */
+                    EntradaFixaExcecao::where(
+                        'entrada_fixa_id',
+                        $entradaFixaAtual->id
+                    )
+                        ->whereDate(
+                            'competencia',
+                            '>=',
+                            $competenciaNovaRegra
+                                ->format('Y-m-d')
+                        )
+                        ->update([
+                            'entrada_fixa_id' =>
+                            $novaEntradaFixa->id,
+                        ]);
+
+                    /*
+                    * Atualiza o mês selecionado e
+                    * todos os próximos já gerados.
+                    */
+                    $movimentacoesFuturas =
+                        Movimentacao::where(
+                            'user_id',
+                            $userId
+                        )
+                        ->where(
+                            'entrada_fixa_id',
+                            $entradaFixaAtual->id
+                        )
+                        ->whereDate(
+                            'data',
+                            '>=',
+                            $competenciaNovaRegra
+                                ->format('Y-m-d')
+                        )
+                        ->get();
+
+                    foreach (
+                        $movimentacoesFuturas
+                        as $item
+                    ) {
+                        $competenciaItem =
+                            $item->data
+                            ->copy()
+                            ->startOfMonth();
+
+                        $novaDataItem =
+                            $competenciaItem
+                            ->copy()
+                            ->day(
+                                min(
+                                    $diaRecebimento,
+                                    $competenciaItem
+                                        ->daysInMonth
+                                )
+                            );
+
+                        $item->update([
+                            'entrada_fixa_id' =>
+                            $novaEntradaFixa->id,
+
+                            'tipo' =>
+                            'entrada',
+
+                            'descricao' =>
+                            $dados['descricao'],
+
+                            'valor' =>
+                            $dados['valor'],
+
+                            'data' =>
+                            $novaDataItem
+                                ->format('Y-m-d'),
+
+                            'categoria' =>
+                            $dados['categoria']
+                                ?? null,
+
+                            'forma_pagamento' =>
+                            null,
+
+                            'status' =>
+                            'recebido',
+
+                            'observacao' =>
+                            $dados['observacao']
+                                ?? null,
+
+                            'parcelado' =>
+                            false,
+
+                            'parcela_fixa' =>
+                            false,
+
+                            'fixo_mensal' =>
+                            true,
+
+                            'mes_atual' =>
+                            null,
+
+                            'total_meses' =>
+                            null,
+
+                            'parcela_atual' =>
+                            null,
+
+                            'total_parcelas' =>
+                            null,
+
+                            'grupo_parcelamento' =>
+                            null,
+
+                            'grupo_fixo_mensal' =>
+                            null,
+
+                            'data_pagamento' =>
+                            null,
+                        ]);
+                    }
+                }
+            );
+
+            $movimentacao->refresh();
+
+            return response()->json([
+                'message' =>
+                'Entrada fixa atualizada neste mês e nos próximos.',
+
+                'movimentacao' =>
+                $this->movimentacaoParaApi(
+                    $movimentacao
+                ),
+            ]);
+        }
+
         return response()->json([
             'message' =>
-                'Esta movimentacao possui regras especiais de edicao.',
+            'Modo de edição inválido para entrada fixa.',
         ], 422);
     }
 
-    $dados = $request->validate([
-        'tipo' => [
-            'required',
-            'in:entrada,despesa',
-        ],
-        'descricao' => [
-            'required',
-            'string',
-            'max:255',
-        ],
-        'valor' => [
-            'required',
-            'numeric',
-            'min:0.01',
-        ],
-        'data' => [
-            'required',
-            'date',
-        ],
-        'categoria' =>
-            $request->input('tipo') === 'despesa'
-                ? [
-                    'required',
-                    'string',
-                    'max:255',
-                ]
-                : [
-                    'nullable',
-                    'string',
-                    'max:255',
-                ],
-        'forma_pagamento' =>
-            $request->input('tipo') === 'despesa'
-                ? [
-                    'required',
-                    'string',
-                    'max:255',
-                ]
-                : [
-                    'nullable',
-                    'string',
-                    'max:255',
-                ],
-        'status' => [
-            'required',
-            'in:pago,pendente,recebido',
-        ],
-        'observacao' => [
-            'nullable',
-            'string',
-        ],
-        'total_parcelas' => [
-            'nullable',
-            'integer',
-            'min:2',
-            'max:120',
-        ],
-        'modo_edicao' => [
-            'nullable',
-            'in:atual,futuros_fixa',
-        ],
-    ]);
+    private function movimentacaoParaApi(
+        Movimentacao $movimentacao
+    ): array {
+        return [
+            'id' =>
+            $movimentacao->id,
 
-    $modoEdicao =
+            'tipo' =>
+            $movimentacao->tipo,
+
+            'descricao' =>
+            $movimentacao->descricao,
+
+            'valor' =>
+            $movimentacao->valor,
+
+            'data' =>
+            $movimentacao->data
+                ->format('Y-m-d'),
+
+            'data_pagamento' =>
+            $movimentacao->data_pagamento
+                ? $movimentacao
+                ->data_pagamento
+                ->format('Y-m-d')
+                : null,
+
+            'categoria' =>
+            $movimentacao->categoria,
+
+            'forma_pagamento' =>
+            $movimentacao
+                ->forma_pagamento,
+
+            'status' =>
+            $movimentacao->status,
+
+            'observacao' =>
+            $movimentacao->observacao,
+
+            'parcelado' =>
+            $movimentacao->parcelado,
+
+            'parcela_fixa' =>
+            $movimentacao->parcela_fixa,
+
+            'fixo_mensal' =>
+            $movimentacao->fixo_mensal,
+
+            'despesa_fixa_id' =>
+            $movimentacao
+                ->despesa_fixa_id,
+
+            'entrada_fixa_id' =>
+            $movimentacao
+                ->entrada_fixa_id,
+
+            'parcela_atual' =>
+            $movimentacao
+                ->parcela_atual,
+
+            'total_parcelas' =>
+            $movimentacao
+                ->total_parcelas,
+
+            'grupo_parcelamento' =>
+            $movimentacao
+                ->grupo_parcelamento,
+
+            'mes_atual' =>
+            $movimentacao->mes_atual,
+
+            'total_meses' =>
+            $movimentacao
+                ->total_meses,
+
+            'grupo_fixo_mensal' =>
+            $movimentacao
+                ->grupo_fixo_mensal,
+        ];
+    }
+
+    public function update(
+        Request $request,
+        string $id
+    ): JsonResponse {
+        $movimentacao = Movimentacao::where(
+            'user_id',
+            $request->user()->id
+        )
+            ->where('id', $id)
+            ->firstOrFail();
+
+        $dados = $request->validate([
+            'tipo' => [
+                'required',
+                'in:entrada,despesa',
+            ],
+            'descricao' => [
+                'required',
+                'string',
+                'max:255',
+            ],
+            'valor' => [
+                'required',
+                'numeric',
+                'min:0.01',
+            ],
+            'data' => [
+                'required',
+                'date',
+            ],
+            'categoria' =>
+            $request->input('tipo') === 'despesa'
+                ? [
+                    'required',
+                    'string',
+                    'max:255',
+                ]
+                : [
+                    'nullable',
+                    'string',
+                    'max:255',
+                ],
+            'forma_pagamento' =>
+            $request->input('tipo') === 'despesa'
+                ? [
+                    'required',
+                    'string',
+                    'max:255',
+                ]
+                : [
+                    'nullable',
+                    'string',
+                    'max:255',
+                ],
+            'status' => [
+                'required',
+                'in:pago,pendente,recebido',
+            ],
+            'observacao' => [
+                'nullable',
+                'string',
+            ],
+            'total_parcelas' => [
+                'nullable',
+                'integer',
+                'min:2',
+                'max:120',
+            ],
+            'modo_edicao' => [
+                'nullable',
+                'in:atual,futuros_fixa',
+            ],
+        ]);
+
+        $modoEdicao =
             $request->input(
                 'modo_edicao',
                 'atual'
             );
 
-    /*
+        /*
     |--------------------------------------------------------------------------
     | DESPESA FIXA MENSAL
     |--------------------------------------------------------------------------
     */
-    if (
-        $movimentacao->parcela_fixa
-        && $movimentacao->despesa_fixa_id
-    ) {
-        return $this->atualizarDespesaFixa(
-            $request,
-            $movimentacao,
-            $dados,
-            $modoEdicao,
-        );
-    }
-    /*
+        if (
+            $movimentacao->parcela_fixa
+            && $movimentacao->despesa_fixa_id
+        ) {
+            return $this->atualizarDespesaFixa(
+                $request,
+                $movimentacao,
+                $dados,
+                $modoEdicao,
+            );
+        }
+
+        /*
+    |--------------------------------------------------------------------------
+    | ENTRADA FIXA MENSAL
+    |--------------------------------------------------------------------------
+    */
+        if (
+            $movimentacao->fixo_mensal
+            && $movimentacao->entrada_fixa_id
+        ) {
+            return $this->atualizarEntradaFixa(
+                $request,
+                $movimentacao,
+                $dados,
+                $modoEdicao,
+            );
+        }
+        /*
     |--------------------------------------------------------------------------
     | DESPESA PARCELADA
     |--------------------------------------------------------------------------
     */
-    if ($movimentacao->parcelado) {
-        if ($dados['tipo'] !== 'despesa') {
-            return response()->json([
-                'message' =>
+        if ($movimentacao->parcelado) {
+            if ($dados['tipo'] !== 'despesa') {
+                return response()->json([
+                    'message' =>
                     'Uma despesa parcelada nao pode ser transformada em entrada.',
-            ], 422);
-        }
+                ], 422);
+            }
 
-        if (!$movimentacao->grupo_parcelamento) {
-            return response()->json([
-                'message' =>
+            if (!$movimentacao->grupo_parcelamento) {
+                return response()->json([
+                    'message' =>
                     'O grupo deste parcelamento nao foi encontrado.',
-            ], 422);
-        }
+                ], 422);
+            }
 
-        if (empty($dados['total_parcelas'])) {
-            return response()->json([
-                'message' =>
+            if (empty($dados['total_parcelas'])) {
+                return response()->json([
+                    'message' =>
                     'Informe a quantidade de parcelas.',
-            ], 422);
-        }
+                ], 422);
+            }
 
-        $novoTotalParcelas =
-            (int) $dados['total_parcelas'];
+            $novoTotalParcelas =
+                (int) $dados['total_parcelas'];
 
-        $parcelasDoGrupo =
-            Movimentacao::where(
-                'user_id',
-                $request->user()->id
-            )
+            $parcelasDoGrupo =
+                Movimentacao::where(
+                    'user_id',
+                    $request->user()->id
+                )
                 ->where(
                     'grupo_parcelamento',
                     $movimentacao->grupo_parcelamento
@@ -1329,219 +1678,217 @@ public function update(
                 ->orderBy('parcela_atual')
                 ->get();
 
-        if ($parcelasDoGrupo->isEmpty()) {
-            return response()->json([
-                'message' =>
+            if ($parcelasDoGrupo->isEmpty()) {
+                return response()->json([
+                    'message' =>
                     'Nenhuma parcela deste grupo foi encontrada.',
-            ], 422);
-        }
+                ], 422);
+            }
 
-        $totalParcelasAtual = (int) (
-            $parcelasDoGrupo->max(
-                'total_parcelas'
-            )
-            ?: $movimentacao->total_parcelas
-            ?: $parcelasDoGrupo->max(
-                'parcela_atual'
-            )
-        );
+            $totalParcelasAtual = (int) (
+                $parcelasDoGrupo->max(
+                    'total_parcelas'
+                )
+                ?: $movimentacao->total_parcelas
+                ?: $parcelasDoGrupo->max(
+                    'parcela_atual'
+                )
+            );
 
-        /*
+            /*
         * Antes de reduzir, verifica se alguma parcela
         * que seria removida já está paga.
         */
-        $parcelasPagasExcedentes =
-            $parcelasDoGrupo->filter(
-                function ($item) use (
-                    $novoTotalParcelas
-                ) {
-                    return (
-                        (int) $item->parcela_atual
+            $parcelasPagasExcedentes =
+                $parcelasDoGrupo->filter(
+                    function ($item) use (
+                        $novoTotalParcelas
+                    ) {
+                        return (
+                            (int) $item->parcela_atual
                             > $novoTotalParcelas
-                        && (
-                            $item->status === 'pago'
-                            || $item->data_pagamento
-                        )
-                    );
-                }
-            );
+                            && (
+                                $item->status === 'pago'
+                                || $item->data_pagamento
+                            )
+                        );
+                    }
+                );
 
-        if (
-            $parcelasPagasExcedentes
-                ->isNotEmpty()
-        ) {
-            $numerosParcelas =
+            if (
                 $parcelasPagasExcedentes
+                ->isNotEmpty()
+            ) {
+                $numerosParcelas =
+                    $parcelasPagasExcedentes
                     ->pluck('parcela_atual');
 
-            $quantidadeParcelasPagas =
-                $numerosParcelas->count();
+                $quantidadeParcelasPagas =
+                    $numerosParcelas->count();
 
-            $parcelasFormatadas =
-                $numerosParcelas->implode(', ');
+                $parcelasFormatadas =
+                    $numerosParcelas->implode(', ');
 
-            if ($quantidadeParcelasPagas === 1) {
-                $mensagem =
-                    "Não é possível reduzir o parcelamento para {$novoTotalParcelas} parcelas porque a parcela {$parcelasFormatadas} já está paga.";
-            } else {
-                $mensagem =
-                    "Não é possível reduzir o parcelamento para {$novoTotalParcelas} parcelas porque as parcelas {$parcelasFormatadas} já estão pagas.";
+                if ($quantidadeParcelasPagas === 1) {
+                    $mensagem =
+                        "Não é possível reduzir o parcelamento para {$novoTotalParcelas} parcelas porque a parcela {$parcelasFormatadas} já está paga.";
+                } else {
+                    $mensagem =
+                        "Não é possível reduzir o parcelamento para {$novoTotalParcelas} parcelas porque as parcelas {$parcelasFormatadas} já estão pagas.";
+                }
+
+                return response()->json([
+                    'message' => $mensagem,
+                ], 422);
             }
 
-            return response()->json([
-                'message' => $mensagem,
-            ], 422);
-        }
-
-        /*
+            /*
         * Retira do texto o sufixo:
         * "- Parcela 2/4"
         */
-        $descricaoBase = trim(
-            (string) preg_replace(
-                '/\s*-\s*Parcela\s+\d+\/\d+\s*$/i',
-                '',
-                $dados['descricao']
-            )
-        );
-
-        $numeroParcelaSelecionada =
-            (int) (
-                $movimentacao->parcela_atual
-                ?? 1
+            $descricaoBase = trim(
+                (string) preg_replace(
+                    '/\s*-\s*Parcela\s+\d+\/\d+\s*$/i',
+                    '',
+                    $dados['descricao']
+                )
             );
 
-        $parcelaSelecionadaSeraRemovida =
-            $numeroParcelaSelecionada
+            $numeroParcelaSelecionada =
+                (int) (
+                    $movimentacao->parcela_atual
+                    ?? 1
+                );
+
+            $parcelaSelecionadaSeraRemovida =
+                $numeroParcelaSelecionada
                 > $novoTotalParcelas;
 
-        DB::transaction(
-            function () use (
-                $request,
-                $dados,
-                $movimentacao,
-                $descricaoBase,
-                $novoTotalParcelas,
-                $totalParcelasAtual,
-                $numeroParcelaSelecionada,
-                $parcelaSelecionadaSeraRemovida
-            ) {
-                /*
+            DB::transaction(
+                function () use (
+                    $request,
+                    $dados,
+                    $movimentacao,
+                    $descricaoBase,
+                    $novoTotalParcelas,
+                    $totalParcelasAtual,
+                    $numeroParcelaSelecionada,
+                    $parcelaSelecionadaSeraRemovida
+                ) {
+                    /*
                 * REDUZIR QUANTIDADE
                 *
                 * Remove somente parcelas excedentes
                 * que ainda estejam pendentes.
                 */
-                if (
-                    $novoTotalParcelas
+                    if (
+                        $novoTotalParcelas
                         < $totalParcelasAtual
-                ) {
-                    Movimentacao::where(
-                        'user_id',
-                        $request->user()->id
-                    )
-                        ->where(
-                            'grupo_parcelamento',
-                            $movimentacao
-                                ->grupo_parcelamento
+                    ) {
+                        Movimentacao::where(
+                            'user_id',
+                            $request->user()->id
                         )
-                        ->where(
-                            'parcela_atual',
-                            '>',
-                            $novoTotalParcelas
-                        )
-                        ->where(
-                            'status',
-                            'pendente'
-                        )
-                        ->whereNull(
-                            'data_pagamento'
-                        )
-                        ->delete();
-                }
+                            ->where(
+                                'grupo_parcelamento',
+                                $movimentacao
+                                    ->grupo_parcelamento
+                            )
+                            ->where(
+                                'parcela_atual',
+                                '>',
+                                $novoTotalParcelas
+                            )
+                            ->where(
+                                'status',
+                                'pendente'
+                            )
+                            ->whereNull(
+                                'data_pagamento'
+                            )
+                            ->delete();
+                    }
 
-                /*
+                    /*
                 * Edita somente a parcela que foi aberta
                 * pelo usuário.
                 */
-                if (
-                    !$parcelaSelecionadaSeraRemovida
-                ) {
-                    $movimentacao->refresh();
+                    if (
+                        !$parcelaSelecionadaSeraRemovida
+                    ) {
+                        $movimentacao->refresh();
 
-                    $status =
-                        $dados['status'] === 'pago'
+                        $status =
+                            $dados['status'] === 'pago'
                             ? 'pago'
                             : 'pendente';
 
-                    $movimentacao->update([
-                        'tipo' => 'despesa',
+                        $movimentacao->update([
+                            'tipo' => 'despesa',
 
-                        'descricao' =>
+                            'descricao' =>
                             $descricaoBase
-                            . ' - Parcela '
-                            . $numeroParcelaSelecionada
-                            . '/'
-                            . $novoTotalParcelas,
+                                . ' - Parcela '
+                                . $numeroParcelaSelecionada
+                                . '/'
+                                . $novoTotalParcelas,
 
-                        'valor' =>
+                            'valor' =>
                             $dados['valor'],
 
-                        'data' =>
+                            'data' =>
                             $dados['data'],
 
-                        'categoria' =>
+                            'categoria' =>
                             $dados['categoria']
-                            ?? null,
+                                ?? null,
 
-                        'forma_pagamento' =>
-                            $dados[
-                                'forma_pagamento'
-                            ]
-                            ?? null,
+                            'forma_pagamento' =>
+                            $dados['forma_pagamento']
+                                ?? null,
 
-                        'status' =>
+                            'status' =>
                             $status,
 
-                        'observacao' =>
+                            'observacao' =>
                             $dados['observacao']
-                            ?? null,
+                                ?? null,
 
-                        'total_parcelas' =>
+                            'total_parcelas' =>
                             $novoTotalParcelas,
 
-                        'data_pagamento' =>
+                            'data_pagamento' =>
                             $status === 'pago'
                                 ? (
                                     $movimentacao
-                                        ->data_pagamento
-                                        ? $movimentacao
-                                            ->data_pagamento
-                                            ->format(
-                                                'Y-m-d'
-                                            )
-                                        : now()
-                                            ->toDateString()
+                                    ->data_pagamento
+                                    ? $movimentacao
+                                    ->data_pagamento
+                                    ->format(
+                                        'Y-m-d'
+                                    )
+                                    : now()
+                                    ->toDateString()
                                 )
                                 : null,
-                    ]);
-                }
+                        ]);
+                    }
 
-                /*
+                    /*
                 * AUMENTAR QUANTIDADE
                 *
                 * Cria somente as novas parcelas
                 * no final do grupo.
                 */
-                if (
-                    $novoTotalParcelas
+                    if (
+                        $novoTotalParcelas
                         > $totalParcelasAtual
-                ) {
-                    $ultimaParcelaExistente =
-                        Movimentacao::where(
-                            'user_id',
-                            $request->user()->id
-                        )
+                    ) {
+                        $ultimaParcelaExistente =
+                            Movimentacao::where(
+                                'user_id',
+                                $request->user()->id
+                            )
                             ->where(
                                 'grupo_parcelamento',
                                 $movimentacao
@@ -1552,128 +1899,122 @@ public function update(
                             )
                             ->first();
 
-                    if (
-                        !$ultimaParcelaExistente
-                    ) {
-                        throw new \RuntimeException(
-                            'Nao foi possivel encontrar a ultima parcela.'
-                        );
-                    }
+                        if (
+                            !$ultimaParcelaExistente
+                        ) {
+                            throw new \RuntimeException(
+                                'Nao foi possivel encontrar a ultima parcela.'
+                            );
+                        }
 
-                    for (
-                        $parcela =
-                            $totalParcelasAtual + 1;
-                        $parcela
-                            <= $novoTotalParcelas;
-                        $parcela++
-                    ) {
-                        $diferencaParcelas =
+                        for (
+                            $parcela =
+                                $totalParcelasAtual + 1;
                             $parcela
-                            - (int)
+                                <= $novoTotalParcelas;
+                            $parcela++
+                        ) {
+                            $diferencaParcelas =
+                                $parcela
+                                - (int)
                                 $ultimaParcelaExistente
                                     ->parcela_atual;
 
-                        $dataNovaParcela =
-                            $ultimaParcelaExistente
+                            $dataNovaParcela =
+                                $ultimaParcelaExistente
                                 ->data
                                 ->copy()
                                 ->addMonthsNoOverflow(
                                     $diferencaParcelas
                                 );
 
-                        Movimentacao::firstOrCreate(
-                            [
-                                'user_id' =>
+                            Movimentacao::firstOrCreate(
+                                [
+                                    'user_id' =>
                                     $request
                                         ->user()
                                         ->id,
 
-                                'grupo_parcelamento' =>
+                                    'grupo_parcelamento' =>
                                     $movimentacao
                                         ->grupo_parcelamento,
 
-                                'parcela_atual' =>
+                                    'parcela_atual' =>
                                     $parcela,
-                            ],
-                            [
-                                'tipo' =>
+                                ],
+                                [
+                                    'tipo' =>
                                     'despesa',
 
-                                'descricao' =>
+                                    'descricao' =>
                                     $descricaoBase
-                                    . ' - Parcela '
-                                    . $parcela
-                                    . '/'
-                                    . $novoTotalParcelas,
+                                        . ' - Parcela '
+                                        . $parcela
+                                        . '/'
+                                        . $novoTotalParcelas,
 
-                                'valor' =>
+                                    'valor' =>
                                     $dados['valor'],
 
-                                'data' =>
+                                    'data' =>
                                     $dataNovaParcela
                                         ->format(
                                             'Y-m-d'
                                         ),
 
-                                'categoria' =>
-                                    $dados[
-                                        'categoria'
-                                    ]
-                                    ?? null,
+                                    'categoria' =>
+                                    $dados['categoria']
+                                        ?? null,
 
-                                'forma_pagamento' =>
-                                    $dados[
-                                        'forma_pagamento'
-                                    ]
-                                    ?? null,
+                                    'forma_pagamento' =>
+                                    $dados['forma_pagamento']
+                                        ?? null,
 
-                                'status' =>
+                                    'status' =>
                                     'pendente',
 
-                                'observacao' =>
-                                    $dados[
-                                        'observacao'
-                                    ]
-                                    ?? null,
+                                    'observacao' =>
+                                    $dados['observacao']
+                                        ?? null,
 
-                                'parcelado' =>
+                                    'parcelado' =>
                                     true,
 
-                                'parcela_fixa' =>
+                                    'parcela_fixa' =>
                                     false,
 
-                                'fixo_mensal' =>
+                                    'fixo_mensal' =>
                                     false,
 
-                                'mes_atual' =>
+                                    'mes_atual' =>
                                     null,
 
-                                'total_meses' =>
+                                    'total_meses' =>
                                     null,
 
-                                'total_parcelas' =>
+                                    'total_parcelas' =>
                                     $novoTotalParcelas,
 
-                                'grupo_fixo_mensal' =>
+                                    'grupo_fixo_mensal' =>
                                     null,
 
-                                'despesa_fixa_id' =>
+                                    'despesa_fixa_id' =>
                                     null,
 
-                                'entrada_fixa_id' =>
+                                    'entrada_fixa_id' =>
                                     null,
 
-                                'data_pagamento' =>
+                                    'data_pagamento' =>
                                     null,
 
-                                'aviso_vencimento_enviado_em' =>
+                                    'aviso_vencimento_enviado_em' =>
                                     null,
-                            ]
-                        );
+                                ]
+                            );
+                        }
                     }
-                }
 
-                /*
+                    /*
                 * Atualiza a identificação de todas
                 * as parcelas restantes:
                 *
@@ -1681,11 +2022,11 @@ public function update(
                 * Parcela 2/4
                 * Parcela 3/4...
                 */
-                $parcelasAtualizadas =
-                    Movimentacao::where(
-                        'user_id',
-                        $request->user()->id
-                    )
+                    $parcelasAtualizadas =
+                        Movimentacao::where(
+                            'user_id',
+                            $request->user()->id
+                        )
                         ->where(
                             'grupo_parcelamento',
                             $movimentacao
@@ -1696,276 +2037,278 @@ public function update(
                         )
                         ->get();
 
-                foreach (
-                    $parcelasAtualizadas
-                    as $item
-                ) {
-                    $numeroParcela =
-                        (int)
+                    foreach (
+                        $parcelasAtualizadas
+                        as $item
+                    ) {
+                        $numeroParcela =
+                            (int)
                             $item
                                 ->parcela_atual;
 
-                    $item->update([
-                        'descricao' =>
+                        $item->update([
+                            'descricao' =>
                             $descricaoBase
-                            . ' - Parcela '
-                            . $numeroParcela
-                            . '/'
-                            . $novoTotalParcelas,
+                                . ' - Parcela '
+                                . $numeroParcela
+                                . '/'
+                                . $novoTotalParcelas,
 
-                        'total_parcelas' =>
+                            'total_parcelas' =>
                             $novoTotalParcelas,
-                    ]);
+                        ]);
+                    }
                 }
-            }
-        );
+            );
 
-        $movimentacaoAtualizada =
-            Movimentacao::where(
-                'user_id',
-                $request->user()->id
-            )
+            $movimentacaoAtualizada =
+                Movimentacao::where(
+                    'user_id',
+                    $request->user()->id
+                )
                 ->where(
                     'id',
                     $movimentacao->id
                 )
                 ->first();
 
-        $mensagem =
-            $novoTotalParcelas
+            $mensagem =
+                $novoTotalParcelas
                 === $totalParcelasAtual
                 ? 'Parcela atualizada com sucesso.'
                 : "Parcelamento atualizado de {$totalParcelasAtual} para {$novoTotalParcelas} parcelas.";
 
-        return response()->json([
-            'message' => $mensagem,
+            return response()->json([
+                'message' => $mensagem,
 
-            'movimentacao' =>
+                'movimentacao' =>
                 $movimentacaoAtualizada
                     ? [
                         'id' =>
-                            $movimentacaoAtualizada
-                                ->id,
+                        $movimentacaoAtualizada
+                            ->id,
 
                         'tipo' =>
-                            $movimentacaoAtualizada
-                                ->tipo,
+                        $movimentacaoAtualizada
+                            ->tipo,
 
                         'descricao' =>
-                            $movimentacaoAtualizada
-                                ->descricao,
+                        $movimentacaoAtualizada
+                            ->descricao,
 
                         'valor' =>
-                            $movimentacaoAtualizada
-                                ->valor,
+                        $movimentacaoAtualizada
+                            ->valor,
 
                         'data' =>
-                            $movimentacaoAtualizada
-                                ->data
-                                ->format(
-                                    'Y-m-d'
-                                ),
+                        $movimentacaoAtualizada
+                            ->data
+                            ->format(
+                                'Y-m-d'
+                            ),
 
                         'data_pagamento' =>
-                            $movimentacaoAtualizada
-                                ->data_pagamento
-                                ? $movimentacaoAtualizada
-                                    ->data_pagamento
-                                    ->format(
-                                        'Y-m-d'
-                                    )
-                                : null,
+                        $movimentacaoAtualizada
+                            ->data_pagamento
+                            ? $movimentacaoAtualizada
+                            ->data_pagamento
+                            ->format(
+                                'Y-m-d'
+                            )
+                            : null,
 
                         'categoria' =>
-                            $movimentacaoAtualizada
-                                ->categoria,
+                        $movimentacaoAtualizada
+                            ->categoria,
 
                         'forma_pagamento' =>
-                            $movimentacaoAtualizada
-                                ->forma_pagamento,
+                        $movimentacaoAtualizada
+                            ->forma_pagamento,
 
                         'status' =>
-                            $movimentacaoAtualizada
-                                ->status,
+                        $movimentacaoAtualizada
+                            ->status,
 
                         'observacao' =>
-                            $movimentacaoAtualizada
-                                ->observacao,
+                        $movimentacaoAtualizada
+                            ->observacao,
 
                         'parcelado' =>
-                            $movimentacaoAtualizada
-                                ->parcelado,
+                        $movimentacaoAtualizada
+                            ->parcelado,
 
                         'parcela_fixa' =>
-                            $movimentacaoAtualizada
-                                ->parcela_fixa,
+                        $movimentacaoAtualizada
+                            ->parcela_fixa,
 
                         'fixo_mensal' =>
-                            $movimentacaoAtualizada
-                                ->fixo_mensal,
+                        $movimentacaoAtualizada
+                            ->fixo_mensal,
 
                         'despesa_fixa_id' =>
-                            $movimentacaoAtualizada
-                                ->despesa_fixa_id,
+                        $movimentacaoAtualizada
+                            ->despesa_fixa_id,
 
                         'entrada_fixa_id' =>
-                            $movimentacaoAtualizada
-                                ->entrada_fixa_id,
+                        $movimentacaoAtualizada
+                            ->entrada_fixa_id,
 
                         'parcela_atual' =>
-                            $movimentacaoAtualizada
-                                ->parcela_atual,
+                        $movimentacaoAtualizada
+                            ->parcela_atual,
 
                         'total_parcelas' =>
-                            $movimentacaoAtualizada
-                                ->total_parcelas,
+                        $movimentacaoAtualizada
+                            ->total_parcelas,
 
                         'grupo_parcelamento' =>
-                            $movimentacaoAtualizada
-                                ->grupo_parcelamento,
+                        $movimentacaoAtualizada
+                            ->grupo_parcelamento,
 
                         'mes_atual' =>
-                            $movimentacaoAtualizada
-                                ->mes_atual,
+                        $movimentacaoAtualizada
+                            ->mes_atual,
 
                         'total_meses' =>
-                            $movimentacaoAtualizada
-                                ->total_meses,
+                        $movimentacaoAtualizada
+                            ->total_meses,
 
                         'grupo_fixo_mensal' =>
-                            $movimentacaoAtualizada
-                                ->grupo_fixo_mensal,
+                        $movimentacaoAtualizada
+                            ->grupo_fixo_mensal,
                     ]
                     : null,
-        ]);
-    }
+            ]);
+        }
 
-    /*
+        /*
     |--------------------------------------------------------------------------
     | MOVIMENTAÇÃO NORMAL
     |--------------------------------------------------------------------------
     */
-    if ($dados['tipo'] === 'despesa') {
-        $dados['status'] =
-            $dados['status'] === 'pago'
+        if ($dados['tipo'] === 'despesa') {
+            $dados['status'] =
+                $dados['status'] === 'pago'
                 ? 'pago'
                 : 'pendente';
 
-        if ($dados['status'] === 'pago') {
-            $dados['data_pagamento'] =
-                $movimentacao->data_pagamento
+            if ($dados['status'] === 'pago') {
+                $dados['data_pagamento'] =
+                    $movimentacao->data_pagamento
                     ? $movimentacao
-                        ->data_pagamento
-                        ->format('Y-m-d')
+                    ->data_pagamento
+                    ->format('Y-m-d')
                     : now()->toDateString();
-        } else {
-            $dados['data_pagamento'] =
-                null;
+            } else {
+                $dados['data_pagamento'] =
+                    null;
+            }
         }
-    }
 
-    if ($dados['tipo'] === 'entrada') {
-        $dados['status'] = 'recebido';
-        $dados['forma_pagamento'] = null;
-        $dados['data_pagamento'] = null;
-    }
+        if ($dados['tipo'] === 'entrada') {
+            $dados['status'] = 'recebido';
+            $dados['forma_pagamento'] = null;
+            $dados['data_pagamento'] = null;
+        }
 
-    unset(
-        $dados['total_parcelas'],
-        $dados['modo_edicao'],
-    );
-
+        unset(
+            $dados['total_parcelas'],
+            $dados['modo_edicao'],
+        );
 
 
-    $movimentacao->update($dados);
-    $movimentacao->refresh();
 
-    return response()->json([
-        'message' =>
+        $movimentacao->update($dados);
+        $movimentacao->refresh();
+
+        return response()->json([
+            'message' =>
             'Movimentacao atualizada com sucesso.',
 
-        'movimentacao' => [
-            'id' =>
+            'movimentacao' => [
+                'id' =>
                 $movimentacao->id,
 
-            'tipo' =>
+                'tipo' =>
                 $movimentacao->tipo,
 
-            'descricao' =>
+                'descricao' =>
                 $movimentacao->descricao,
 
-            'valor' =>
+                'valor' =>
                 $movimentacao->valor,
 
-            'data' =>
+                'data' =>
                 $movimentacao->data
                     ->format('Y-m-d'),
 
-            'data_pagamento' =>
+                'data_pagamento' =>
                 $movimentacao->data_pagamento
                     ? $movimentacao
-                        ->data_pagamento
-                        ->format('Y-m-d')
+                    ->data_pagamento
+                    ->format('Y-m-d')
                     : null,
 
-            'categoria' =>
+                'categoria' =>
                 $movimentacao->categoria,
 
-            'forma_pagamento' =>
+                'forma_pagamento' =>
                 $movimentacao
                     ->forma_pagamento,
 
-            'status' =>
+                'status' =>
                 $movimentacao->status,
 
-            'observacao' =>
+                'observacao' =>
                 $movimentacao->observacao,
 
-            'parcelado' =>
+                'parcelado' =>
                 $movimentacao->parcelado,
 
-            'parcela_fixa' =>
+                'parcela_fixa' =>
                 $movimentacao->parcela_fixa,
 
-            'fixo_mensal' =>
+                'fixo_mensal' =>
                 $movimentacao->fixo_mensal,
 
-            'despesa_fixa_id' =>
+                'despesa_fixa_id' =>
                 $movimentacao
                     ->despesa_fixa_id,
 
-            'entrada_fixa_id' =>
+                'entrada_fixa_id' =>
                 $movimentacao
                     ->entrada_fixa_id,
 
-            'parcela_atual' =>
+                'parcela_atual' =>
                 $movimentacao
                     ->parcela_atual,
 
-            'total_parcelas' =>
+                'total_parcelas' =>
                 $movimentacao
                     ->total_parcelas,
 
-            'grupo_parcelamento' =>
+                'grupo_parcelamento' =>
                 $movimentacao
                     ->grupo_parcelamento,
 
-            'mes_atual' =>
+                'mes_atual' =>
                 $movimentacao->mes_atual,
 
-            'total_meses' =>
+                'total_meses' =>
                 $movimentacao->total_meses,
 
-            'grupo_fixo_mensal' =>
+                'grupo_fixo_mensal' =>
                 $movimentacao
                     ->grupo_fixo_mensal,
-        ],
-    ]);}
+            ],
+        ]);
+    }
 
     /**
      * Marca uma despesa como paga.
      */
-    public function marcarComoPago( string $id): JsonResponse {
+    public function marcarComoPago(string $id): JsonResponse
+    {
         $user = request()->user();
 
         $movimentacao = Movimentacao::query()
@@ -1976,7 +2319,7 @@ public function update(
         if ($movimentacao->tipo !== 'despesa') {
             return response()->json([
                 'message' =>
-                    'Somente despesas podem ser marcadas como pagas.',
+                'Somente despesas podem ser marcadas como pagas.',
             ], 422);
         }
 
@@ -1989,17 +2332,17 @@ public function update(
 
         return response()->json([
             'message' =>
-                'Despesa marcada como paga com sucesso.',
+            'Despesa marcada como paga com sucesso.',
 
             'movimentacao' => [
                 'id' => $movimentacao->id,
                 'status' => $movimentacao->status,
 
                 'data_pagamento' =>
-                    $movimentacao->data_pagamento
-                        ? $movimentacao->data_pagamento
-                            ->format('Y-m-d')
-                        : null,
+                $movimentacao->data_pagamento
+                    ? $movimentacao->data_pagamento
+                    ->format('Y-m-d')
+                    : null,
             ],
         ]);
     }
@@ -2020,14 +2363,145 @@ public function update(
 
         /*
         |--------------------------------------------------------------------------
-        | Fixas.
+        | ENTRADA FIXA MENSAL
         |--------------------------------------------------------------------------
         */
-        if ($movimentacao->fixo_mensal) {
+        if (
+            $movimentacao->fixo_mensal
+            && $movimentacao->entrada_fixa_id
+        ) {
+            $entradaFixa = EntradaFixa::where(
+                'user_id',
+                $request->user()->id
+            )
+                ->where(
+                    'id',
+                    $movimentacao->entrada_fixa_id
+                )
+                ->first();
+
+            if (!$entradaFixa) {
+                return response()->json([
+                    'message' =>
+                        'A regra desta entrada fixa não foi encontrada.',
+                ], 422);
+            }
+
+            $modoExclusao =
+                $request->input(
+                    'modo_exclusao',
+                    'atual'
+                );
+
+            if (
+                !in_array(
+                    $modoExclusao,
+                    [
+                        'atual',
+                        'encerrar_fixa',
+                    ],
+                    true
+                )
+            ) {
+                $modoExclusao = 'atual';
+            }
+
+            $competencia =
+                \Carbon\Carbon::parse(
+                    $movimentacao->data
+                )->startOfMonth();
+
+            /*
+            |--------------------------------------------------------------------------
+            | ENCERRAR DESTE MÊS EM DIANTE
+            |--------------------------------------------------------------------------
+            */
+            if ($modoExclusao === 'encerrar_fixa') {
+                $quantidadeExcluida =
+                    DB::transaction(
+                        function () use (
+                            $request,
+                            $entradaFixa,
+                            $movimentacao,
+                            $competencia
+                        ) {
+                            /*
+                            * Encerra a regra a partir
+                            * da competência selecionada.
+                            */
+                            $entradaFixa->update([
+                                'ativa' =>
+                                    false,
+
+                                'encerrada_em' =>
+                                    $competencia
+                                        ->format('Y-m-d'),
+                            ]);
+
+                            /*
+                            * Remove o mês selecionado
+                            * e todos os próximos que
+                            * já tenham sido gerados.
+                            */
+                            return Movimentacao::where(
+                                'user_id',
+                                $request->user()->id
+                            )
+                                ->where(
+                                    'entrada_fixa_id',
+                                    $movimentacao
+                                        ->entrada_fixa_id
+                                )
+                                ->whereDate(
+                                    'data',
+                                    '>=',
+                                    $competencia
+                                        ->format('Y-m-d')
+                                )
+                                ->delete();
+                        }
+                    );
+
+                return response()->json([
+                    'message' =>
+                        "Entrada fixa encerrada com sucesso. {$quantidadeExcluida} lançamento(s) removido(s).",
+                ]);
+            }
+
+            /*
+            |--------------------------------------------------------------------------
+            | SOMENTE ESTE MÊS
+            |--------------------------------------------------------------------------
+            */
+
+            /*
+            * Registra a competência como exceção.
+            * Assim o gerador não recria
+            * novamente esse mês.
+            */
+            DB::transaction(
+                function () use (
+                    $movimentacao,
+                    $competencia
+                ): void {
+                    EntradaFixaExcecao::firstOrCreate([
+                        'entrada_fixa_id' =>
+                            $movimentacao
+                                ->entrada_fixa_id,
+
+                        'competencia' =>
+                            $competencia
+                                ->format('Y-m-d'),
+                    ]);
+
+                    $movimentacao->delete();
+                }
+            );
+
             return response()->json([
                 'message' =>
-                    'Esta movimentacao possui regras especiais de exclusao.',
-            ], 422);
+                    'Lançamento da entrada fixa excluído somente deste mês.',
+            ]);
         }
 
         /*
@@ -2052,7 +2526,7 @@ public function update(
             if (!$despesaFixa) {
                 return response()->json([
                     'message' =>
-                        'A regra desta despesa fixa não foi encontrada.',
+                    'A regra desta despesa fixa não foi encontrada.',
                 ], 422);
             }
 
@@ -2100,8 +2574,8 @@ public function update(
                             $despesaFixa->update([
                                 'ativa' => false,
                                 'encerrada_em' =>
-                                    $competencia
-                                        ->format('Y-m-d'),
+                                $competencia
+                                    ->format('Y-m-d'),
                             ]);
 
                             return Movimentacao::where(
@@ -2132,7 +2606,7 @@ public function update(
 
                 return response()->json([
                     'message' =>
-                        "Despesa fixa encerrada com sucesso. {$quantidadeExcluida} lançamento(s) pendente(s) removido(s).",
+                    "Despesa fixa encerrada com sucesso. {$quantidadeExcluida} lançamento(s) pendente(s) removido(s).",
                 ]);
             }
 
@@ -2152,7 +2626,7 @@ public function update(
             ) {
                 return response()->json([
                     'message' =>
-                        'Este lançamento já foi pago e não pode ser excluído.',
+                    'Este lançamento já foi pago e não pode ser excluído.',
                 ], 422);
             }
 
@@ -2167,12 +2641,12 @@ public function update(
                 ): void {
                     DespesaFixaExcecao::firstOrCreate([
                         'despesa_fixa_id' =>
-                            $movimentacao
-                                ->despesa_fixa_id,
+                        $movimentacao
+                            ->despesa_fixa_id,
 
                         'competencia' =>
-                            $competencia
-                                ->format('Y-m-d'),
+                        $competencia
+                            ->format('Y-m-d'),
                     ]);
 
                     $movimentacao->delete();
@@ -2181,7 +2655,7 @@ public function update(
 
             return response()->json([
                 'message' =>
-                    'Lançamento da despesa fixa excluído somente deste mês.',
+                'Lançamento da despesa fixa excluído somente deste mês.',
             ]);
         }
         /*
@@ -2221,36 +2695,36 @@ public function update(
                         'user_id',
                         $request->user()->id
                     )
-                        ->where(
-                            'grupo_parcelamento',
-                            $movimentacao
-                                ->grupo_parcelamento
-                        )
-                        ->where(
-                            'parcela_atual',
-                            '>=',
-                            $movimentacao
-                                ->parcela_atual
-                        )
-                        ->where(
-                            'status',
-                            'pendente'
-                        )
-                        ->whereNull(
-                            'data_pagamento'
-                        )
-                        ->delete();
+                    ->where(
+                        'grupo_parcelamento',
+                        $movimentacao
+                            ->grupo_parcelamento
+                    )
+                    ->where(
+                        'parcela_atual',
+                        '>=',
+                        $movimentacao
+                            ->parcela_atual
+                    )
+                    ->where(
+                        'status',
+                        'pendente'
+                    )
+                    ->whereNull(
+                        'data_pagamento'
+                    )
+                    ->delete();
 
                 if ($quantidadeExcluida === 0) {
                     return response()->json([
                         'message' =>
-                            'Nenhuma parcela foi excluida. Parcelas pagas nao podem ser apagadas.',
+                        'Nenhuma parcela foi excluida. Parcelas pagas nao podem ser apagadas.',
                     ], 422);
                 }
 
                 return response()->json([
                     'message' =>
-                        "{$quantidadeExcluida} parcela(s) excluida(s) com sucesso. Parcelas pagas foram mantidas.",
+                    "{$quantidadeExcluida} parcela(s) excluida(s) com sucesso. Parcelas pagas foram mantidas.",
                 ]);
             }
 
@@ -2263,7 +2737,7 @@ public function update(
             ) {
                 return response()->json([
                     'message' =>
-                        'Esta parcela ja foi paga e nao pode ser excluida.',
+                    'Esta parcela ja foi paga e nao pode ser excluida.',
                 ], 422);
             }
 
@@ -2271,7 +2745,7 @@ public function update(
 
             return response()->json([
                 'message' =>
-                    'Parcela excluida com sucesso.',
+                'Parcela excluida com sucesso.',
             ]);
         }
 
@@ -2284,7 +2758,7 @@ public function update(
 
         return response()->json([
             'message' =>
-                'Movimentacao excluida com sucesso.',
+            'Movimentacao excluida com sucesso.',
         ]);
     }
 }

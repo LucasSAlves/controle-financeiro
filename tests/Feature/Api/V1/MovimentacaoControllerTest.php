@@ -2562,3 +2562,546 @@ test('usuario pode encerrar despesa fixa preservando lancamentos pagos', functio
             : null
     )->toBe('2026-08-01');
 });
+
+test('usuario pode editar somente o mes atual de entrada fixa pela api', function () {
+    /** @var \Tests\TestCase $this */
+
+    $user = User::factory()->create();
+
+    Sanctum::actingAs($user, ['mobile']);
+
+    $regra = \App\Models\EntradaFixa::create([
+        'user_id' => $user->id,
+        'grupo_recorrencia' => 'grupo-entrada-fixa-atual',
+        'descricao' => 'Salario',
+        'valor' => 1000,
+        'data_inicio' => '2026-08-05',
+        'dia_recebimento' => 5,
+        'categoria' => 'Salário',
+        'observacao' => null,
+        'ativa' => true,
+        'encerrada_em' => null,
+    ]);
+
+    $agosto = \App\Models\Movimentacao::create([
+        'user_id' => $user->id,
+        'tipo' => 'entrada',
+        'descricao' => 'Salario',
+        'valor' => 1000,
+        'data' => '2026-08-05',
+        'categoria' => 'Salário',
+        'forma_pagamento' => null,
+        'status' => 'recebido',
+        'observacao' => null,
+
+        'parcelado' => false,
+        'parcela_fixa' => false,
+        'fixo_mensal' => true,
+
+        'despesa_fixa_id' => null,
+        'entrada_fixa_id' => $regra->id,
+
+        'parcela_atual' => null,
+        'total_parcelas' => null,
+        'grupo_parcelamento' => null,
+
+        'mes_atual' => null,
+        'total_meses' => null,
+        'grupo_fixo_mensal' => null,
+
+        'data_pagamento' => null,
+    ]);
+
+    $setembro = \App\Models\Movimentacao::create([
+        'user_id' => $user->id,
+        'tipo' => 'entrada',
+        'descricao' => 'Salario',
+        'valor' => 1000,
+        'data' => '2026-09-05',
+        'categoria' => 'Salário',
+        'forma_pagamento' => null,
+        'status' => 'recebido',
+        'observacao' => null,
+
+        'parcelado' => false,
+        'parcela_fixa' => false,
+        'fixo_mensal' => true,
+
+        'despesa_fixa_id' => null,
+        'entrada_fixa_id' => $regra->id,
+
+        'data_pagamento' => null,
+    ]);
+
+    $response = $this->putJson(
+        "/api/v1/movimentacoes/{$agosto->id}",
+        [
+            'tipo' => 'entrada',
+            'descricao' => 'Salario agosto',
+            'valor' => 1200,
+            'data' => '2026-08-15',
+            'categoria' => 'Salário',
+            'forma_pagamento' => null,
+            'status' => 'recebido',
+            'observacao' => 'Somente agosto',
+            'modo_edicao' => 'atual',
+        ]
+    );
+
+    $response->assertOk();
+
+    $agosto->refresh();
+    $setembro->refresh();
+    $regra->refresh();
+
+    expect($agosto->descricao)
+        ->toBe('Salario agosto');
+
+    expect((float) $agosto->valor)
+        ->toBe(1200.0);
+
+    expect($agosto->data->toDateString())
+        ->toBe('2026-08-15');
+
+    expect($agosto->status)
+        ->toBe('recebido');
+
+    expect($agosto->forma_pagamento)
+        ->toBeNull();
+
+    expect($agosto->observacao)
+        ->toBe('Somente agosto');
+
+    /*
+     * Setembro permanece com a regra antiga.
+     */
+    expect($setembro->descricao)
+        ->toBe('Salario');
+
+    expect((float) $setembro->valor)
+        ->toBe(1000.0);
+
+    expect($setembro->data->toDateString())
+        ->toBe('2026-09-05');
+
+    /*
+     * A regra não muda quando a edição
+     * é somente deste mês.
+     */
+    expect($regra->descricao)
+        ->toBe('Salario');
+
+    expect((float) $regra->valor)
+        ->toBe(1000.0);
+
+    expect($regra->ativa)
+        ->toBeTrue();
+});
+
+test('usuario pode editar entrada fixa deste mes e proximos pela api', function () {
+    /** @var \Tests\TestCase $this */
+
+    $user = User::factory()->create();
+
+    Sanctum::actingAs($user, ['mobile']);
+
+    $grupo = 'grupo-entrada-fixa-futuros';
+
+    $regraAntiga = \App\Models\EntradaFixa::create([
+        'user_id' => $user->id,
+        'grupo_recorrencia' => $grupo,
+        'descricao' => 'Renda fixa',
+        'valor' => 1000,
+        'data_inicio' => '2026-07-05',
+        'dia_recebimento' => 5,
+        'categoria' => 'Salário',
+        'observacao' => null,
+        'ativa' => true,
+        'encerrada_em' => null,
+    ]);
+
+    $julho = \App\Models\Movimentacao::create([
+        'user_id' => $user->id,
+        'tipo' => 'entrada',
+        'descricao' => 'Renda fixa',
+        'valor' => 1000,
+        'data' => '2026-07-05',
+        'categoria' => 'Salário',
+        'forma_pagamento' => null,
+        'status' => 'recebido',
+        'observacao' => null,
+        'parcelado' => false,
+        'parcela_fixa' => false,
+        'fixo_mensal' => true,
+        'entrada_fixa_id' => $regraAntiga->id,
+        'data_pagamento' => null,
+    ]);
+
+    $agosto = \App\Models\Movimentacao::create([
+        'user_id' => $user->id,
+        'tipo' => 'entrada',
+        'descricao' => 'Renda fixa',
+        'valor' => 1000,
+        'data' => '2026-08-05',
+        'categoria' => 'Salário',
+        'forma_pagamento' => null,
+        'status' => 'recebido',
+        'observacao' => null,
+        'parcelado' => false,
+        'parcela_fixa' => false,
+        'fixo_mensal' => true,
+        'entrada_fixa_id' => $regraAntiga->id,
+        'data_pagamento' => null,
+    ]);
+
+    $setembro = \App\Models\Movimentacao::create([
+        'user_id' => $user->id,
+        'tipo' => 'entrada',
+        'descricao' => 'Renda fixa',
+        'valor' => 1000,
+        'data' => '2026-09-05',
+        'categoria' => 'Salário',
+        'forma_pagamento' => null,
+        'status' => 'recebido',
+        'observacao' => null,
+        'parcelado' => false,
+        'parcela_fixa' => false,
+        'fixo_mensal' => true,
+        'entrada_fixa_id' => $regraAntiga->id,
+        'data_pagamento' => null,
+    ]);
+
+    $response = $this->putJson(
+        "/api/v1/movimentacoes/{$agosto->id}",
+        [
+            'tipo' => 'entrada',
+            'descricao' => 'Renda nova',
+            'valor' => 1500,
+            'data' => '2026-08-20',
+            'categoria' => 'Salário',
+            'forma_pagamento' => null,
+            'status' => 'recebido',
+            'observacao' => 'Novo valor',
+            'modo_edicao' => 'futuros_fixa',
+        ]
+    );
+
+    $response->assertOk();
+
+    $regraAntiga->refresh();
+    $julho->refresh();
+    $agosto->refresh();
+    $setembro->refresh();
+
+    /*
+     * Julho é histórico anterior.
+     */
+    expect($julho->descricao)
+        ->toBe('Renda fixa');
+
+    expect((float) $julho->valor)
+        ->toBe(1000.0);
+
+    expect($julho->data->toDateString())
+        ->toBe('2026-07-05');
+
+    /*
+     * Agosto e setembro recebem a nova regra.
+     */
+    expect($agosto->descricao)
+        ->toBe('Renda nova');
+
+    expect((float) $agosto->valor)
+        ->toBe(1500.0);
+
+    expect($agosto->data->toDateString())
+        ->toBe('2026-08-20');
+
+    expect($agosto->status)
+        ->toBe('recebido');
+
+    expect($setembro->descricao)
+        ->toBe('Renda nova');
+
+    expect((float) $setembro->valor)
+        ->toBe(1500.0);
+
+    expect($setembro->data->toDateString())
+        ->toBe('2026-09-20');
+
+    /*
+     * A regra anterior é encerrada.
+     */
+    expect($regraAntiga->ativa)
+        ->toBeFalse();
+
+    expect(
+        $regraAntiga->encerrada_em
+            ? $regraAntiga->encerrada_em->toDateString()
+            : null
+    )->toBe('2026-08-01');
+
+    $novaRegra = \App\Models\EntradaFixa::where(
+        'user_id',
+        $user->id
+    )
+        ->where(
+            'grupo_recorrencia',
+            $grupo
+        )
+        ->where('ativa', true)
+        ->firstOrFail();
+
+    expect($novaRegra->descricao)
+        ->toBe('Renda nova');
+
+    expect((float) $novaRegra->valor)
+        ->toBe(1500.0);
+
+    expect($novaRegra->dia_recebimento)
+        ->toBe(20);
+
+    expect($novaRegra->data_inicio->toDateString())
+        ->toBe('2026-08-20');
+
+    expect($agosto->entrada_fixa_id)
+        ->toBe($novaRegra->id);
+
+    expect($setembro->entrada_fixa_id)
+        ->toBe($novaRegra->id);
+});
+
+test('usuario pode excluir somente o mes atual de entrada fixa pela api', function () {
+    /** @var \Tests\TestCase $this */
+
+    $user = User::factory()->create();
+
+    Sanctum::actingAs($user, ['mobile']);
+
+    $regra = \App\Models\EntradaFixa::create([
+        'user_id' => $user->id,
+        'grupo_recorrencia' => 'grupo-entrada-fixa-excluir-atual',
+        'descricao' => 'Salario',
+        'valor' => 1000,
+        'data_inicio' => '2026-08-05',
+        'dia_recebimento' => 5,
+        'categoria' => 'Salário',
+        'observacao' => null,
+        'ativa' => true,
+        'encerrada_em' => null,
+    ]);
+
+    $agosto = \App\Models\Movimentacao::create([
+        'user_id' => $user->id,
+        'tipo' => 'entrada',
+        'descricao' => 'Salario',
+        'valor' => 1000,
+        'data' => '2026-08-05',
+        'categoria' => 'Salário',
+        'forma_pagamento' => null,
+        'status' => 'recebido',
+        'observacao' => null,
+        'parcelado' => false,
+        'parcela_fixa' => false,
+        'fixo_mensal' => true,
+        'entrada_fixa_id' => $regra->id,
+        'data_pagamento' => null,
+    ]);
+
+    $setembro = \App\Models\Movimentacao::create([
+        'user_id' => $user->id,
+        'tipo' => 'entrada',
+        'descricao' => 'Salario',
+        'valor' => 1000,
+        'data' => '2026-09-05',
+        'categoria' => 'Salário',
+        'forma_pagamento' => null,
+        'status' => 'recebido',
+        'observacao' => null,
+        'parcelado' => false,
+        'parcela_fixa' => false,
+        'fixo_mensal' => true,
+        'entrada_fixa_id' => $regra->id,
+        'data_pagamento' => null,
+    ]);
+
+    $response = $this->deleteJson(
+        "/api/v1/movimentacoes/{$agosto->id}",
+        [
+            'modo_exclusao' => 'atual',
+        ]
+    );
+
+    $response->assertOk();
+
+    $this->assertDatabaseMissing(
+        'movimentacoes',
+        [
+            'id' => $agosto->id,
+        ]
+    );
+
+    $this->assertDatabaseHas(
+        'movimentacoes',
+        [
+            'id' => $setembro->id,
+        ]
+    );
+
+    $excecao = \App\Models\EntradaFixaExcecao::where(
+        'entrada_fixa_id',
+        $regra->id
+    )->firstOrFail();
+
+    expect(
+        $excecao->competencia->toDateString()
+    )->toBe('2026-08-01');
+
+    $regra->refresh();
+
+    expect($regra->ativa)
+        ->toBeTrue();
+});
+
+test('usuario pode encerrar entrada fixa deste mes em diante pela api', function () {
+    /** @var \Tests\TestCase $this */
+
+    $user = User::factory()->create();
+
+    Sanctum::actingAs($user, ['mobile']);
+
+    $regra = \App\Models\EntradaFixa::create([
+        'user_id' => $user->id,
+        'grupo_recorrencia' => 'grupo-entrada-fixa-encerrar',
+        'descricao' => 'Renda mensal',
+        'valor' => 1000,
+        'data_inicio' => '2026-07-05',
+        'dia_recebimento' => 5,
+        'categoria' => 'Salário',
+        'observacao' => null,
+        'ativa' => true,
+        'encerrada_em' => null,
+    ]);
+
+    $julho = \App\Models\Movimentacao::create([
+        'user_id' => $user->id,
+        'tipo' => 'entrada',
+        'descricao' => 'Renda mensal',
+        'valor' => 1000,
+        'data' => '2026-07-05',
+        'categoria' => 'Salário',
+        'forma_pagamento' => null,
+        'status' => 'recebido',
+        'observacao' => null,
+        'parcelado' => false,
+        'parcela_fixa' => false,
+        'fixo_mensal' => true,
+        'entrada_fixa_id' => $regra->id,
+        'data_pagamento' => null,
+    ]);
+
+    $agosto = \App\Models\Movimentacao::create([
+        'user_id' => $user->id,
+        'tipo' => 'entrada',
+        'descricao' => 'Renda mensal',
+        'valor' => 1000,
+        'data' => '2026-08-05',
+        'categoria' => 'Salário',
+        'forma_pagamento' => null,
+        'status' => 'recebido',
+        'observacao' => null,
+        'parcelado' => false,
+        'parcela_fixa' => false,
+        'fixo_mensal' => true,
+        'entrada_fixa_id' => $regra->id,
+        'data_pagamento' => null,
+    ]);
+
+    $setembro = \App\Models\Movimentacao::create([
+        'user_id' => $user->id,
+        'tipo' => 'entrada',
+        'descricao' => 'Renda mensal',
+        'valor' => 1000,
+        'data' => '2026-09-05',
+        'categoria' => 'Salário',
+        'forma_pagamento' => null,
+        'status' => 'recebido',
+        'observacao' => null,
+        'parcelado' => false,
+        'parcela_fixa' => false,
+        'fixo_mensal' => true,
+        'entrada_fixa_id' => $regra->id,
+        'data_pagamento' => null,
+    ]);
+
+    $outubro = \App\Models\Movimentacao::create([
+        'user_id' => $user->id,
+        'tipo' => 'entrada',
+        'descricao' => 'Renda mensal',
+        'valor' => 1000,
+        'data' => '2026-10-05',
+        'categoria' => 'Salário',
+        'forma_pagamento' => null,
+        'status' => 'recebido',
+        'observacao' => null,
+        'parcelado' => false,
+        'parcela_fixa' => false,
+        'fixo_mensal' => true,
+        'entrada_fixa_id' => $regra->id,
+        'data_pagamento' => null,
+    ]);
+
+    $response = $this->deleteJson(
+        "/api/v1/movimentacoes/{$agosto->id}",
+        [
+            'modo_exclusao' => 'encerrar_fixa',
+        ]
+    );
+
+    $response->assertOk();
+
+    /*
+     * Julho é histórico anterior e permanece.
+     */
+    $this->assertDatabaseHas(
+        'movimentacoes',
+        [
+            'id' => $julho->id,
+        ]
+    );
+
+    /*
+     * Agosto e os próximos são removidos.
+     */
+    $this->assertDatabaseMissing(
+        'movimentacoes',
+        [
+            'id' => $agosto->id,
+        ]
+    );
+
+    $this->assertDatabaseMissing(
+        'movimentacoes',
+        [
+            'id' => $setembro->id,
+        ]
+    );
+
+    $this->assertDatabaseMissing(
+        'movimentacoes',
+        [
+            'id' => $outubro->id,
+        ]
+    );
+
+    $regra->refresh();
+
+    expect($regra->ativa)
+        ->toBeFalse();
+
+    expect(
+        $regra->encerrada_em
+            ? $regra->encerrada_em->toDateString()
+            : null
+    )->toBe('2026-08-01');
+});
