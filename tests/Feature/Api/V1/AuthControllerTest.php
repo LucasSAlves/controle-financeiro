@@ -181,4 +181,102 @@ class AuthControllerTest extends TestCase
                 'code' => 'ACCOUNT_BLOCKED',
             ]);
     }
+
+        public function test_visitante_pode_criar_conta_e_receber_token(): void
+    {
+        $response = $this->postJson('/api/v1/auth/register', [
+            'name' => 'Novo Usuário',
+            'email' => '  NOVO@TESTE.COM  ',
+            'password' => 'senha-teste-123',
+            'password_confirmation' => 'senha-teste-123',
+            'device_name' => 'Expo - testes',
+        ]);
+
+        $response
+            ->assertCreated()
+            ->assertJsonPath('message', 'Conta criada com sucesso.')
+            ->assertJsonPath('token_type', 'Bearer')
+            ->assertJsonPath('user.name', 'Novo Usuário')
+            ->assertJsonPath('user.email', 'novo@teste.com')
+            ->assertJsonStructure([
+                'message',
+                'token_type',
+                'token',
+                'user' => [
+                    'id',
+                    'name',
+                    'email',
+                ],
+            ]);
+
+        $this->assertDatabaseHas('users', [
+            'name' => 'Novo Usuário',
+            'email' => 'novo@teste.com',
+        ]);
+
+        $user = User::query()
+            ->where('email', 'novo@teste.com')
+            ->firstOrFail();
+
+        $this->assertDatabaseHas('personal_access_tokens', [
+            'tokenable_id' => $user->id,
+            'name' => 'Expo - testes',
+        ]);
+
+        $token = $response->json('token');
+
+        $this
+            ->withToken($token)
+            ->getJson('/api/v1/auth/me')
+            ->assertOk()
+            ->assertJsonPath('user.email', 'novo@teste.com');
+    }
+
+    public function test_cadastro_rejeita_email_ja_cadastrado(): void
+    {
+        User::factory()->create([
+            'email' => 'existente@teste.com',
+        ]);
+
+        $response = $this->postJson('/api/v1/auth/register', [
+            'name' => 'Novo Usuário',
+            'email' => 'existente@teste.com',
+            'password' => 'senha-teste-123',
+            'password_confirmation' => 'senha-teste-123',
+            'device_name' => 'Expo - testes',
+        ]);
+
+        $response
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['email'])
+            ->assertJsonPath(
+                'errors.email.0',
+                'Este e-mail já está cadastrado.'
+            );
+
+        $this->assertDatabaseCount('users', 1);
+        $this->assertDatabaseCount('personal_access_tokens', 0);
+    }
+
+    public function test_cadastro_rejeita_confirmacao_de_senha_incorreta(): void
+    {
+        $response = $this->postJson('/api/v1/auth/register', [
+            'name' => 'Novo Usuário',
+            'email' => 'novo@teste.com',
+            'password' => 'senha-teste-123',
+            'password_confirmation' => 'senha-diferente',
+            'device_name' => 'Expo - testes',
+        ]);
+
+        $response
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['password'])
+            ->assertJsonPath(
+                'errors.password.0',
+                'A confirmação da senha não confere.'
+            );
+
+        $this->assertDatabaseCount('users', 0);
+        $this->assertDatabaseCount('personal_access_tokens', 0);
+    }
 }

@@ -4,7 +4,9 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\LoginRequest;
+use App\Http\Requests\Api\V1\RegisterRequest;
 use App\Models\User;
+use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -12,6 +14,33 @@ use Illuminate\Validation\ValidationException;
 
 class AuthController extends Controller
 {
+    /**
+     * Cria uma nova conta e autentica o usuário no aplicativo.
+     */
+    public function register(RegisterRequest $request): JsonResponse
+    {
+        $data = $request->validated();
+
+        $user = User::create([
+            'name' => $data['name'],
+            'email' => $data['email'],
+            'password' => Hash::make($data['password']),
+        ]);
+
+        event(new Registered($user));
+
+        $token = $user
+            ->createToken($data['device_name'], ['mobile'])
+            ->plainTextToken;
+
+        return response()->json([
+            'message' => 'Conta criada com sucesso.',
+            'token_type' => 'Bearer',
+            'token' => $token,
+            'user' => $this->userData($user),
+        ], 201);
+    }
+
     /**
      * Autentica o usuário e cria um token para o dispositivo.
      *
