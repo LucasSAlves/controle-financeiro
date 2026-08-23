@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Api\V1\ForgotPasswordRequest;
 use App\Http\Requests\Api\V1\LoginRequest;
 use App\Http\Requests\Api\V1\RegisterRequest;
 use App\Models\User;
@@ -10,6 +11,7 @@ use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Password;
 use Illuminate\Validation\ValidationException;
 
 class AuthController extends Controller
@@ -39,6 +41,23 @@ class AuthController extends Controller
             'token' => $token,
             'user' => $this->userData($user),
         ], 201);
+    }
+
+    /**
+     * Envia o link de redefinição de senha.
+     */
+    public function forgotPassword(
+        ForgotPasswordRequest $request
+    ): JsonResponse {
+        $data = $request->validated();
+
+        Password::sendResetLink([
+            'email' => $data['email'],
+        ]);
+
+        return response()->json([
+            'message' => 'Se o e-mail informado estiver cadastrado, você receberá um link de redefinição de senha em breve.',
+        ]);
     }
 
     /**
