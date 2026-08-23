@@ -279,4 +279,47 @@ class AuthControllerTest extends TestCase
         $this->assertDatabaseCount('users', 0);
         $this->assertDatabaseCount('personal_access_tokens', 0);
     }
+
+    public function test_usuario_pode_solicitar_link_de_recuperacao_de_senha(): void
+{
+    $user = User::factory()->create([
+        'email' => 'recuperacao@teste.com',
+    ]);
+
+    \Illuminate\Support\Facades\Notification::fake();
+
+    $response = $this->postJson('/api/v1/auth/forgot-password', [
+        'email' => 'recuperacao@teste.com',
+    ]);
+
+    $response
+        ->assertOk()
+        ->assertJsonPath(
+            'message',
+            'Se o e-mail informado estiver cadastrado, você receberá um link de redefinição de senha em breve.'
+        );
+
+    \Illuminate\Support\Facades\Notification::assertSentTo(
+        $user,
+        \Illuminate\Auth\Notifications\ResetPassword::class
+    );
+}
+
+    public function test_recuperacao_de_senha_nao_revela_se_email_existe(): void
+    {
+        \Illuminate\Support\Facades\Notification::fake();
+
+        $response = $this->postJson('/api/v1/auth/forgot-password', [
+            'email' => 'naoexiste@teste.com',
+        ]);
+
+        $response
+            ->assertOk()
+            ->assertJsonPath(
+                'message',
+                'Se o e-mail informado estiver cadastrado, você receberá um link de redefinição de senha em breve.'
+            );
+
+        \Illuminate\Support\Facades\Notification::assertNothingSent();
+    }
 }
