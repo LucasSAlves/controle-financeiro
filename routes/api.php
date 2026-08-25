@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\V1\DashboardController;
 use App\Http\Controllers\Api\V1\DadosUsuarioController;
 use App\Http\Controllers\Api\V1\MovimentacaoController;
 use App\Http\Controllers\Api\V1\MovimentacaoOpcoesController;
+use App\Http\Controllers\Api\V1\PasswordController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function () {
@@ -35,6 +36,11 @@ Route::prefix('v1')->group(function () {
         Route::get('/dados-usuario', [
             DadosUsuarioController::class,
             'show',
+        ]);
+
+        Route::patch('/password', [
+            PasswordController::class,
+            'update',
         ]);
 
         Route::patch('/dados-usuario', [
