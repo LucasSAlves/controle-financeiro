@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\V1\AuthController;
+use App\Http\Controllers\Api\V1\CategoriaController;
 use App\Http\Controllers\Api\V1\DashboardController;
 use App\Http\Controllers\Api\V1\DadosUsuarioController;
 use App\Http\Controllers\Api\V1\MovimentacaoController;
@@ -26,6 +27,26 @@ Route::prefix('v1')->group(function () {
         Route::get('/movimentacoes/opcoes', [
             MovimentacaoOpcoesController::class,
             'index',
+        ]);
+
+        Route::get('/categorias', [
+            CategoriaController::class,
+            'index',
+        ]);
+
+        Route::post('/categorias', [
+            CategoriaController::class,
+            'store',
+        ]);
+
+        Route::put('/categorias/{id}', [
+            CategoriaController::class,
+            'update',
+        ]);
+
+        Route::delete('/categorias/{id}', [
+            CategoriaController::class,
+            'destroy',
         ]);
 
         Route::get('/movimentacoes/{id}', [
