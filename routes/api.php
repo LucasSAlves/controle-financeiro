@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\V1\DashboardController;
 use App\Http\Controllers\Api\V1\DadosUsuarioController;
 use App\Http\Controllers\Api\V1\MovimentacaoController;
 use App\Http\Controllers\Api\V1\MovimentacaoOpcoesController;
+use App\Http\Controllers\Api\V1\FormaPagamentoController;
 use App\Http\Controllers\Api\V1\PasswordController;
 use Illuminate\Support\Facades\Route;
 
@@ -46,6 +47,26 @@ Route::prefix('v1')->group(function () {
 
         Route::delete('/categorias/{id}', [
             CategoriaController::class,
+            'destroy',
+        ]);
+
+        Route::get('/formas-pagamento', [
+            FormaPagamentoController::class,
+            'index',
+        ]);
+
+        Route::post('/formas-pagamento', [
+            FormaPagamentoController::class,
+            'store',
+        ]);
+
+        Route::put('/formas-pagamento/{id}', [
+            FormaPagamentoController::class,
+            'update',
+        ]);
+
+        Route::delete('/formas-pagamento/{id}', [
+            FormaPagamentoController::class,
             'destroy',
         ]);
 
