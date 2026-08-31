@@ -30,10 +30,14 @@ class MovimentacaoController extends Controller
         $tipoSelecionado = $request->input('tipo', 'todos');
         $statusSelecionado = $request->input('status', 'todos');
 
-        $inicioDoMes = \Carbon\Carbon::createFromFormat('Y-m', $mesSelecionado)
+        $mesBase = \Carbon\Carbon::createFromFormat( 'Y-m-d',$mesSelecionado . '-01');
+
+        $inicioDoMes = $mesBase
+            ->copy()
             ->startOfMonth();
 
-        $fimDoMes = \Carbon\Carbon::createFromFormat('Y-m', $mesSelecionado)
+        $fimDoMes = $mesBase
+            ->copy()
             ->endOfMonth();
 
         /*
