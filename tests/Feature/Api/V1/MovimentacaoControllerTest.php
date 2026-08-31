@@ -1923,6 +1923,84 @@ test('usuario pode excluir parcela atual e futuras pendentes preservando pagas',
     );
 });
 
+test('ao excluir futuras a parcela atual paga e preservada e a mensagem informa isso', function () {
+    /** @var \Tests\TestCase $this */
+
+    $user = User::factory()->create();
+
+    Sanctum::actingAs(
+        $user,
+        ['mobile']
+    );
+
+    $grupo = 'grupo-excluir-partindo-paga';
+
+    $parcelaPaga = Movimentacao::create([
+        'user_id' => $user->id,
+        'tipo' => 'despesa',
+        'descricao' => 'Teste - Parcela 1/2',
+        'valor' => 25,
+        'data' => '2026-08-31',
+        'categoria' => 'Carro',
+        'forma_pagamento' => 'Pix',
+        'status' => 'pago',
+        'parcelado' => true,
+        'parcela_fixa' => false,
+        'fixo_mensal' => false,
+        'parcela_atual' => 1,
+        'total_parcelas' => 2,
+        'grupo_parcelamento' => $grupo,
+        'data_pagamento' => '2026-08-31',
+    ]);
+
+    $parcelaPendente = Movimentacao::create([
+        'user_id' => $user->id,
+        'tipo' => 'despesa',
+        'descricao' => 'Teste - Parcela 2/2',
+        'valor' => 25,
+        'data' => '2026-09-30',
+        'categoria' => 'Carro',
+        'forma_pagamento' => 'Pix',
+        'status' => 'pendente',
+        'parcelado' => true,
+        'parcela_fixa' => false,
+        'fixo_mensal' => false,
+        'parcela_atual' => 2,
+        'total_parcelas' => 2,
+        'grupo_parcelamento' => $grupo,
+        'data_pagamento' => null,
+    ]);
+
+    $response = $this->deleteJson(
+        "/api/v1/movimentacoes/{$parcelaPaga->id}",
+        [
+            'modo_exclusao' => 'futuras',
+        ]
+    );
+
+    $response
+        ->assertOk()
+        ->assertJsonPath(
+            'message',
+            'A parcela atual não foi excluída porque está paga. 1 parcela(s) pendente(s) posterior(es) foi(ram) excluída(s) com sucesso.'
+        );
+
+    $this->assertDatabaseHas(
+        'movimentacoes',
+        [
+            'id' => $parcelaPaga->id,
+            'status' => 'pago',
+        ]
+    );
+
+    $this->assertDatabaseMissing(
+        'movimentacoes',
+        [
+            'id' => $parcelaPendente->id,
+        ]
+    );
+});
+
 test('api nao permite excluir parcela atual ja paga', function () {
     /** @var \Tests\TestCase $this */
 

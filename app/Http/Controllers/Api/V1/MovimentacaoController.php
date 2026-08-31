@@ -2716,15 +2716,35 @@ class MovimentacaoController extends Controller
                     ->delete();
 
                 if ($quantidadeExcluida === 0) {
+                    if (
+                        $movimentacao->status === 'pago'
+                        || $movimentacao->data_pagamento
+                    ) {
+                        return response()->json([
+                            'message' =>
+                                'Esta parcela está paga e não pode ser excluída. Nenhuma parcela pendente posterior foi encontrada para exclusão.',
+                        ], 422);
+                    }
+
                     return response()->json([
                         'message' =>
-                        'Nenhuma parcela foi excluida. Parcelas pagas nao podem ser apagadas.',
+                            'Nenhuma parcela pendente foi encontrada para exclusão.',
                     ], 422);
+                }
+
+                if (
+                    $movimentacao->status === 'pago'
+                    || $movimentacao->data_pagamento
+                ) {
+                    return response()->json([
+                        'message' =>
+                            "A parcela atual não foi excluída porque está paga. {$quantidadeExcluida} parcela(s) pendente(s) posterior(es) foi(ram) excluída(s) com sucesso.",
+                    ]);
                 }
 
                 return response()->json([
                     'message' =>
-                    "{$quantidadeExcluida} parcela(s) excluida(s) com sucesso. Parcelas pagas foram mantidas.",
+                        "{$quantidadeExcluida} parcela(s) pendente(s) excluída(s) com sucesso.",
                 ]);
             }
 
