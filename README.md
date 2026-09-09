@@ -30,6 +30,4 @@ O sistema está publicado em:
 
 ## Instalação local
 
-As configurações privadas devem ser inseridas no arquivo `.env`.
-
-O arquivo `.env` não deve ser enviado ao GitHub. Utilize o arquivo `.env.example` como modelo.
+As configurações privadas foram inseridas no arquivo `.env`.
