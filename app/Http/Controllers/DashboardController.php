@@ -28,10 +28,10 @@ class DashboardController extends Controller
 
         $mesSelecionado = $request->input('mes', now()->format('Y-m'));
 
-        $inicioDoMes = Carbon::createFromFormat('Y-m', $mesSelecionado)
+        $inicioDoMes = Carbon::createFromFormat('!Y-m', $mesSelecionado)
             ->startOfMonth();
 
-        $fimDoMes = Carbon::createFromFormat('Y-m', $mesSelecionado)
+        $fimDoMes = Carbon::createFromFormat('!Y-m', $mesSelecionado)
             ->endOfMonth();
 
         $hoje = Carbon::today();
@@ -97,7 +97,7 @@ class DashboardController extends Controller
         $graficoGastos = $this->montarGraficoGastos(
             (int) $user->id,
             $periodoGrafico,
-            $hoje
+            $inicioDoMes->isSameMonth($hoje) ? $hoje : $inicioDoMes
         );
 
         /*
