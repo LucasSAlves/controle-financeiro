@@ -30,7 +30,7 @@ class FormaPagamentoController extends Controller
         ]);
     }
 
-    public function store(Request $request): RedirectResponse
+    public function store(Request $request): RedirectResponse|\Illuminate\Http\JsonResponse
     {
         $dados = $request->validate([
             'nome' => [
@@ -43,11 +43,18 @@ class FormaPagamentoController extends Controller
             ],
         ]);
 
-        FormaPagamento::create([
+        $formaPagamento = FormaPagamento::create([
             'user_id' => Auth::id(),
             'nome' => $dados['nome'],
             'ativo' => true,
         ]);
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'id' => $formaPagamento->id,
+                'nome' => $formaPagamento->nome,
+            ], 201);
+        }
 
         return redirect()
             ->route('formas-pagamento.index')

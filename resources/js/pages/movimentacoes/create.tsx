@@ -1,7 +1,18 @@
+import { Button } from '@/components/ui/button';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
+} from '@/components/ui/dialog';
+import { Plus } from 'lucide-react';
 import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
 import { Head, Link, useForm } from '@inertiajs/react';
-import { FormEvent } from 'react';
+import { type FormEvent, useState } from 'react';
 
 type FormData = {
     tipo: string;
@@ -105,9 +116,135 @@ export default function MovimentacoesCreate({
         fixo_mensal: false,
     });
 
-    const categoriasDisponiveis = categorias.filter(
+    const [categoriasCriadas, setCategoriasCriadas] = useState<Categoria[]>([]);
+    const [mostrarNovaCategoria, setMostrarNovaCategoria] = useState(false);
+    const [nomeCategoria, setNomeCategoria] = useState('');
+    const [erroCategoria, setErroCategoria] = useState('');
+    const [salvandoCategoria, setSalvandoCategoria] = useState(false);
+
+    const [formasPagamentoCriadas, setFormasPagamentoCriadas] = useState<FormaPagamento[]>([]);
+    const [mostrarNovaFormaPagamento, setMostrarNovaFormaPagamento] = useState(false);
+    const [nomeFormaPagamento, setNomeFormaPagamento] = useState('');
+    const [erroFormaPagamento, setErroFormaPagamento] = useState('');
+    const [salvandoFormaPagamento, setSalvandoFormaPagamento] = useState(false);
+
+    const formasPagamentoDisponiveis = [...formasPagamento, ...formasPagamentoCriadas];
+
+    const categoriasDisponiveis = [...categorias, ...categoriasCriadas].filter(
         (categoria) => categoria.tipo === data.tipo
     );
+
+    async function cadastrarCategoria() {
+        const nome = nomeCategoria.trim();
+
+        if (salvandoCategoria) return;
+
+        if (!nome) {
+            setErroCategoria('Informe o nome da categoria.');
+            return;
+        }
+
+        setSalvandoCategoria(true);
+        setErroCategoria('');
+
+        try {
+            const token = document.cookie
+                .split('; ')
+                .find((cookie) => cookie.startsWith('XSRF-TOKEN='))
+                ?.slice('XSRF-TOKEN='.length);
+
+            const resposta = await fetch('/categorias', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {
+                    Accept: 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-XSRF-TOKEN': token ? decodeURIComponent(token) : '',
+                },
+                body: JSON.stringify({ nome, tipo: data.tipo }),
+            });
+
+            if (resposta.status === 422) {
+                const resultado = await resposta.json();
+                setErroCategoria(resultado.errors?.nome?.[0] ?? 'Confira os dados da categoria.');
+                return;
+            }
+
+            if (resposta.status !== 201) {
+                setErroCategoria('Não foi possível cadastrar a categoria. Confira se a sessão está ativa.');
+                return;
+            }
+
+            const categoria: Categoria = await resposta.json();
+
+            setCategoriasCriadas((atuais) => [...atuais, categoria]);
+            setData((atual) =>
+                atual.tipo === categoria.tipo ? { ...atual, categoria: categoria.nome } : atual
+            );
+            setNomeCategoria('');
+            setMostrarNovaCategoria(false);
+        } catch {
+            setErroCategoria('Não foi possível concluir o cadastro. Confira sua conexão.');
+        } finally {
+            setSalvandoCategoria(false);
+        }
+    }
+
+    async function cadastrarFormaPagamento() {
+        const nome = nomeFormaPagamento.trim();
+
+        if (salvandoFormaPagamento) return;
+
+        if (!nome) {
+            setErroFormaPagamento('Informe o nome da forma de pagamento.');
+            return;
+        }
+
+        setSalvandoFormaPagamento(true);
+        setErroFormaPagamento('');
+
+        try {
+            const token = document.cookie
+                .split('; ')
+                .find((cookie) => cookie.startsWith('XSRF-TOKEN='))
+                ?.slice('XSRF-TOKEN='.length);
+
+            const resposta = await fetch('/formas-pagamento', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {
+                    Accept: 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-XSRF-TOKEN': token ? decodeURIComponent(token) : '',
+                },
+                body: JSON.stringify({ nome }),
+            });
+
+            if (resposta.status === 422) {
+                const resultado = await resposta.json();
+                setErroFormaPagamento(resultado.errors?.nome?.[0] ?? 'Confira os dados da forma de pagamento.');
+                return;
+            }
+
+            if (resposta.status !== 201) {
+                setErroFormaPagamento('Não foi possível cadastrar a forma de pagamento. Confira se a sessão está ativa.');
+                return;
+            }
+
+            const formaPagamento: FormaPagamento = await resposta.json();
+
+            setFormasPagamentoCriadas((atuais) => [...atuais, formaPagamento]);
+            setData((atual) =>
+                atual.tipo === 'despesa' ? { ...atual, forma_pagamento: formaPagamento.nome } : atual
+            );
+            setNomeFormaPagamento('');
+            setMostrarNovaFormaPagamento(false);
+        } catch {
+            setErroFormaPagamento('Não foi possível concluir o cadastro. Confira sua conexão.');
+        } finally {
+            setSalvandoFormaPagamento(false);
+        }
+    }
 
     const statusPendenteDespesa =
         data.data < dataHoje ? 'Vencido' : 'A vencer';
@@ -470,13 +607,92 @@ export default function MovimentacoesCreate({
                         )}
 
                         <div>
-                            <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                                Categoria
-                            </label>
+                            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                                <label
+                                    htmlFor="categoria-movimentacao"
+                                    className="text-sm font-medium text-gray-700 dark:text-gray-300"
+                                >
+                                    Categoria
+                                </label>
 
-                            <select
-                                required={data.tipo === 'despesa'}
-                                value={data.categoria}
+                                <Dialog
+                                    open={mostrarNovaCategoria}
+                                    onOpenChange={(aberto) => {
+                                        if (salvandoCategoria) return;
+
+                                        setMostrarNovaCategoria(aberto);
+                                        setNomeCategoria('');
+                                        setErroCategoria('');
+                                    }}
+                                >
+                                    <DialogTrigger asChild>
+                                        <Button type="button" variant="outline" size="sm">
+                                            <Plus aria-hidden="true" />
+                                            Nova categoria
+                                        </Button>
+                                    </DialogTrigger>
+
+                                    <DialogContent className="w-[calc(100%-2rem)] max-w-md rounded-xl">
+                                        <DialogHeader>
+                                            <DialogTitle>Nova categoria</DialogTitle>
+                                            <DialogDescription>
+                                                Cadastre uma categoria de {data.tipo === 'despesa' ? 'despesa' : 'entrada'} para esta movimentação.
+                                            </DialogDescription>
+                                        </DialogHeader>
+
+                                        <div className="space-y-2">
+                                            <label htmlFor="nome-nova-categoria" className="block text-sm font-medium">
+                                                Nome da categoria
+                                            </label>
+                                            <input
+                                                id="nome-nova-categoria"
+                                                type="text"
+                                                value={nomeCategoria}
+                                                maxLength={255}
+                                                disabled={salvandoCategoria}
+                                                aria-invalid={Boolean(erroCategoria)}
+                                                aria-describedby={erroCategoria ? 'erro-nova-categoria' : undefined}
+                                                onChange={(event) => setNomeCategoria(event.target.value)}
+                                                onKeyDown={(event) => {
+                                                    if (event.key === 'Enter' && !event.nativeEvent.isComposing) {
+                                                        event.preventDefault();
+                                                        void cadastrarCategoria();
+                                                    }
+                                                }}
+                                                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                            />
+                                            {erroCategoria && (
+                                                <p id="erro-nova-categoria" role="alert" className="text-sm text-red-600">
+                                                    {erroCategoria}
+                                                </p>
+                                            )}
+                                        </div>
+
+                                        <DialogFooter className="gap-2 sm:space-x-0">
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                disabled={salvandoCategoria}
+                                                onClick={() => setMostrarNovaCategoria(false)}
+                                            >
+                                                Cancelar
+                                            </Button>
+                                            <Button
+                                                type="button"
+                                                disabled={salvandoCategoria}
+                                                onClick={() => void cadastrarCategoria()}
+                                            >
+                                                {salvandoCategoria ? 'Salvando…' : 'Salvar categoria'}
+                                            </Button>
+                                        </DialogFooter>
+                                    </DialogContent>
+                                </Dialog>
+                                </div>
+
+                                <select
+                                    id="categoria-movimentacao"
+                                    required={data.tipo === 'despesa'}
+                                    value={data.categoria}
                                 onChange={(event) =>
                                     setData('categoria', event.target.value)
                                 }
@@ -509,11 +725,90 @@ export default function MovimentacoesCreate({
 
                         {data.tipo === 'despesa' && (
                             <div>
-                                <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                                    Forma de pagamento
-                                </label>
+                                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                                    <label
+                                        htmlFor="forma-pagamento-movimentacao"
+                                        className="text-sm font-medium text-gray-700 dark:text-gray-300"
+                                    >
+                                        Forma de pagamento
+                                    </label>
+
+                                    <Dialog
+                                        open={mostrarNovaFormaPagamento}
+                                        onOpenChange={(aberto) => {
+                                            if (salvandoFormaPagamento) return;
+
+                                            setMostrarNovaFormaPagamento(aberto);
+                                            setNomeFormaPagamento('');
+                                            setErroFormaPagamento('');
+                                        }}
+                                    >
+                                        <DialogTrigger asChild>
+                                            <Button type="button" variant="outline" size="sm">
+                                                <Plus aria-hidden="true" />
+                                                Nova forma de pagamento
+                                            </Button>
+                                        </DialogTrigger>
+
+                                        <DialogContent className="w-[calc(100%-2rem)] max-w-md rounded-xl">
+                                            <DialogHeader>
+                                                <DialogTitle>Nova forma de pagamento</DialogTitle>
+                                                <DialogDescription>
+                                                    Cadastre uma forma de pagamento para esta despesa.
+                                                </DialogDescription>
+                                            </DialogHeader>
+
+                                            <div className="space-y-2">
+                                                <label htmlFor="nome-nova-forma-pagamento" className="block text-sm font-medium">
+                                                    Nome da forma de pagamento
+                                                </label>
+                                                <input
+                                                    id="nome-nova-forma-pagamento"
+                                                    type="text"
+                                                    value={nomeFormaPagamento}
+                                                    maxLength={255}
+                                                    disabled={salvandoFormaPagamento}
+                                                    aria-invalid={Boolean(erroFormaPagamento)}
+                                                    aria-describedby={erroFormaPagamento ? 'erro-nova-forma-pagamento' : undefined}
+                                                    onChange={(event) => setNomeFormaPagamento(event.target.value)}
+                                                    onKeyDown={(event) => {
+                                                        if (event.key === 'Enter' && !event.nativeEvent.isComposing) {
+                                                            event.preventDefault();
+                                                            void cadastrarFormaPagamento();
+                                                        }
+                                                    }}
+                                                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                                />
+                                                {erroFormaPagamento && (
+                                                    <p id="erro-nova-forma-pagamento" role="alert" className="text-sm text-red-600">
+                                                        {erroFormaPagamento}
+                                                    </p>
+                                                )}
+                                            </div>
+
+                                            <DialogFooter className="gap-2 sm:space-x-0">
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    disabled={salvandoFormaPagamento}
+                                                    onClick={() => setMostrarNovaFormaPagamento(false)}
+                                                >
+                                                    Cancelar
+                                                </Button>
+                                                <Button
+                                                    type="button"
+                                                    disabled={salvandoFormaPagamento}
+                                                    onClick={() => void cadastrarFormaPagamento()}
+                                                >
+                                                    {salvandoFormaPagamento ? 'Salvando…' : 'Salvar forma de pagamento'}
+                                                </Button>
+                                            </DialogFooter>
+                                        </DialogContent>
+                                    </Dialog>
+                                    </div>
 
                                 <select
+                                    id="forma-pagamento-movimentacao"
                                     required
                                     value={data.forma_pagamento}
                                     onChange={(event) =>
@@ -528,13 +823,13 @@ export default function MovimentacoesCreate({
                                         Selecione a forma de pagamento
                                     </option>
 
-                                    {formasPagamento.length === 0 && (
+                                    {formasPagamentoDisponiveis.length === 0 && (
                                         <option value="" disabled>
                                             Nenhuma forma de pagamento cadastrada
                                         </option>
                                     )}
 
-                                    {formasPagamento.map((formaPagamento) => (
+                                    {formasPagamentoDisponiveis.map((formaPagamento) => (
                                         <option
                                             key={formaPagamento.id}
                                             value={formaPagamento.nome}
