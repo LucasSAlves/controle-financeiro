@@ -1,3 +1,4 @@
+import { CadastroRapido } from './cadastro-rapido';
 import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
 import { Head, Link, useForm } from '@inertiajs/react';
@@ -116,9 +117,10 @@ export default function MovimentacoesEdit({
 
     const [modalEdicaoAberto, setModalEdicaoAberto] = useState(false);
 
-    const categoriasDisponiveis = categorias.filter(
-        (categoria) => categoria.tipo === data.tipo
-    );
+    const [categoriasCriadas, setCategoriasCriadas] = useState<Categoria[]>([]);
+    const [formasPagamentoCriadas, setFormasPagamentoCriadas] = useState<FormaPagamento[]>([]);
+    const formasPagamentoDisponiveis = [...formasPagamento, ...formasPagamentoCriadas];
+    const categoriasDisponiveis = [...categorias, ...categoriasCriadas].filter((categoria) => categoria.tipo === data.tipo);
 
     const hoje = new Date();
     const ano = hoje.getFullYear();
@@ -387,11 +389,17 @@ export default function MovimentacoesEdit({
                         )}
 
                         <div>
-                            <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                                Categoria
-                            </label>
+                            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                                <label htmlFor="categoria-movimentacao" className="text-sm font-medium text-gray-700 dark:text-gray-300">Categoria</label>
+                                <CadastroRapido tipo={data.tipo} campo="categoria" onCriado={(opcao) => {
+                                    const tipo = data.tipo === 'despesa' ? 'despesa' : 'entrada';
+                                    setCategoriasCriadas((atuais) => [...atuais, { ...opcao, tipo }]);
+                                    setData((atual) => atual.tipo === tipo ? { ...atual, categoria: opcao.nome } : atual);
+                                }} />
+                            </div>
 
                             <select
+                                id="categoria-movimentacao"
                                 value={data.categoria}
                                 onChange={(event) =>
                                     setData('categoria', event.target.value)
@@ -435,11 +443,16 @@ export default function MovimentacoesEdit({
 
                         {data.tipo === 'despesa' && (
                             <div>
-                                <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                                    Forma de pagamento
-                                </label>
+                                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                                    <label htmlFor="forma-pagamento-movimentacao" className="text-sm font-medium text-gray-700 dark:text-gray-300">Forma de pagamento</label>
+                                    <CadastroRapido tipo={data.tipo} campo="forma_pagamento" onCriado={(opcao) => {
+                                        setFormasPagamentoCriadas((atuais) => [...atuais, opcao]);
+                                        setData((atual) => atual.tipo === 'despesa' ? { ...atual, forma_pagamento: opcao.nome } : atual);
+                                    }} />
+                                </div>
 
                                 <select
+                                    id="forma-pagamento-movimentacao"
                                     value={data.forma_pagamento}
                                     onChange={(event) =>
                                         setData(
@@ -454,7 +467,7 @@ export default function MovimentacoesEdit({
                                     </option>
 
                                     {data.forma_pagamento &&
-                                        !formasPagamento.some(
+                                        !formasPagamentoDisponiveis.some(
                                             (forma) => forma.nome === data.forma_pagamento
                                         ) && (
                                             <option value={data.forma_pagamento}>
@@ -462,13 +475,13 @@ export default function MovimentacoesEdit({
                                             </option>
                                         )}
 
-                                    {formasPagamento.length === 0 && (
+                                    {formasPagamentoDisponiveis.length === 0 && (
                                         <option value="" disabled>
                                             Nenhuma forma de pagamento cadastrada
                                         </option>
                                     )}
 
-                                    {formasPagamento.map((forma) => (
+                                    {formasPagamentoDisponiveis.map((forma) => (
                                         <option key={forma.id} value={forma.nome}>
                                             {forma.nome}
                                         </option>

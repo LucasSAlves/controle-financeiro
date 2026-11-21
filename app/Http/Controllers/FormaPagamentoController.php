@@ -40,7 +40,9 @@ class FormaPagamentoController extends Controller
                 Rule::unique('formas_pagamento')->where(function ($query) {
                     return $query->where('user_id', Auth::id());
                 }),
-            ],
+                        ],
+        ], [
+            'nome.unique' => 'Já existe uma forma de pagamento com esse nome.',
         ]);
 
         $formaPagamento = FormaPagamento::create([
