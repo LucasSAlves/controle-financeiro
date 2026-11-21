@@ -33,7 +33,7 @@ class CategoriaController extends Controller
         ]);
     }
 
-    public function store(Request $request): RedirectResponse
+    public function store(Request $request): RedirectResponse|\Illuminate\Http\JsonResponse
     {
         $dados = $request->validate([
             'tipo' => ['required', 'in:entrada,despesa'],
@@ -49,12 +49,20 @@ class CategoriaController extends Controller
             ],
         ]);
 
-        Categoria::create([
+        $categoria = Categoria::create([
             'user_id' => Auth::id(),
             'tipo' => $dados['tipo'],
             'nome' => $dados['nome'],
             'ativo' => true,
         ]);
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'id' => $categoria->id,
+                'tipo' => $categoria->tipo,
+                'nome' => $categoria->nome,
+            ], 201);
+        }
 
         return redirect()
             ->route('categorias.index')
