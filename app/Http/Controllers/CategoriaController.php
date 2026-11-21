@@ -46,7 +46,9 @@ class CategoriaController extends Controller
                         ->where('user_id', Auth::id())
                         ->where('tipo', $request->tipo);
                 }),
-            ],
+                        ],
+        ], [
+            'nome.unique' => 'Já existe uma categoria com esse nome para este tipo de movimentação.',
         ]);
 
         $categoria = Categoria::create([
