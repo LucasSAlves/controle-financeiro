@@ -13,6 +13,26 @@ class GerarDespesasFixasMensais
         Carbon|string $mes,
         ?int $userId = null
     ): int {
+        return $this->processarMes($mes, $userId, static fn (array $chave, array $dados) =>
+            Movimentacao::firstOrCreate($chave, $dados)->wasRecentlyCreated
+        );
+    }
+
+    /** @return list<Movimentacao> */
+    public function preverParaMes(Carbon $mes, int $userId): array
+    {
+        $previstas = [];
+        $this->processarMes($mes, $userId, static function (array $chave, array $dados) use (&$previstas): bool {
+            $previstas[] = new Movimentacao($chave + $dados);
+
+            return false;
+        });
+
+        return $previstas;
+    }
+
+    private function processarMes(Carbon|string $mes, ?int $userId, callable $registrar): int
+    {
         $competencia = $mes instanceof Carbon
             ? $mes->copy()->startOfMonth()
             : Carbon::parse($mes)->startOfMonth();
@@ -46,6 +66,7 @@ class GerarDespesasFixasMensais
             function ($despesasFixas) use (
                 $inicioDoMes,
                 $fimDoMes,
+                $registrar,
                 &$quantidadeCriada
             ) {
                 foreach ($despesasFixas as $despesaFixa) {
@@ -184,7 +205,7 @@ class GerarDespesasFixasMensais
                         ->copy()
                         ->day($diaVencimento);
 
-                    $movimentacao = Movimentacao::firstOrCreate(
+                    $criada = $registrar(
                         [
                             'despesa_fixa_id' => $despesaFixa->id,
                             'data' => $dataVencimento->format('Y-m-d'),
@@ -217,7 +238,7 @@ class GerarDespesasFixasMensais
                         ]
                     );
 
-                    if ($movimentacao->wasRecentlyCreated) {
+                    if ($criada) {
                         $quantidadeCriada++;
                     }
                 }
