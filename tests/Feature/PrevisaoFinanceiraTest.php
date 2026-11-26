@@ -13,6 +13,23 @@ class PrevisaoFinanceiraTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_api_da_previsao_exige_autenticacao_e_retorna_os_dados_da_conta(): void
+    {
+        $rota = '/api/v1/previsao-financeira';
+
+        $this->getJson($rota)->assertUnauthorized();
+
+        $usuario = User::factory()->create();
+        \Laravel\Sanctum\Sanctum::actingAs($usuario);
+
+        $esperado = app(CalcularPrevisaoFinanceira::class)->calcular($usuario->id);
+
+        $this->getJson($rota)
+            ->assertOk()
+            ->assertJsonCount(3, 'meses')
+            ->assertExactJson($esperado);
+    }
+
     public function test_previsao_carrega_saldo_e_separa_atrasos_ate_o_pagamento(): void
     {
         $this->travelTo(now()->setDate(2026, 11, 25)->startOfDay());
