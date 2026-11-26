@@ -13,6 +13,7 @@ import { type NavItem, type SharedData } from '@/types';
 import { Link, usePage } from '@inertiajs/react';
 import {
     BarChart3,
+    CalendarRange,
     CreditCard,
     LayoutGrid,
     Tags,
@@ -32,6 +33,11 @@ const mainNavItems: NavItem[] = [
         title: 'Relatórios',
         url: '/relatorios',
         icon: BarChart3,
+    },
+    {
+        title: 'Planejamento',
+        url: '/planejamento',
+        icon: CalendarRange,
     },
     {
         title: 'Movimentações',

@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\V1\MovimentacaoController;
 use App\Http\Controllers\Api\V1\MovimentacaoOpcoesController;
 use App\Http\Controllers\Api\V1\FormaPagamentoController;
 use App\Http\Controllers\Api\V1\PasswordController;
+use App\Http\Controllers\Api\V1\PrevisaoFinanceiraController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function () {
@@ -17,6 +18,11 @@ Route::prefix('v1')->group(function () {
     ])->group(function () {
         Route::get('/dashboard', [
             DashboardController::class,
+            'index',
+        ]);
+
+        Route::get('/previsao-financeira', [
+            PrevisaoFinanceiraController::class,
             'index',
         ]);
 

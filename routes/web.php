@@ -8,6 +8,7 @@ use App\Http\Controllers\CategoriaController;
 use App\Http\Controllers\FormaPagamentoController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\RelatorioController;
+use App\Http\Controllers\PrevisaoFinanceiraController;
 
 Route::get('/', function () {
     return Inertia::render('welcome');
@@ -19,6 +20,9 @@ Route::middleware(['auth'])->group(function () {
 
     Route::get('relatorios', [RelatorioController::class, 'index'])
         ->name('relatorios.index');
+
+    Route::get('planejamento', PrevisaoFinanceiraController::class)
+        ->name('planejamento.index');
 
     Route::get('/testes', function () {
         abort_unless(app()->environment('local'), 404);
